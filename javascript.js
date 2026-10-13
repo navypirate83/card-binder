@@ -1,6 +1,7 @@
 /* =========================================================================
    javascript.js — all the code that makes index.html (the Card Binder)
-   work: the light/dark switch, building the pockets, and turning pages.
+   work: the light/dark switch, building the pockets, turning pages, and
+   downloading / uploading the binder as a .JSON file.
    It's loaded at the bottom of index.html, after the page's HTML exists,
    and after binder-storage.js (which it uses to load saved cards).
    ========================================================================= */
@@ -15,6 +16,9 @@ const binder      = document.getElementById('binder');
 const prevButton  = document.getElementById('prevPage');
 const nextButton  = document.getElementById('nextPage');
 const pageStatus  = document.getElementById('pageStatus');
+const downloadButton = document.getElementById('downloadJson');
+const uploadButton   = document.getElementById('uploadJson');
+const fileInput      = document.getElementById('jsonFileInput');
 
 /* =====================================================================
    LIGHT / DARK MODE
@@ -452,3 +456,118 @@ binder.addEventListener('touchend', (event) => {
 const startPage = parseInt(new URLSearchParams(location.search).get('page'), 10);
 if (startPage >= 1 && startPage <= TOTAL_PAGES) currentPage = startPage;
 showPages();
+
+/* =====================================================================
+   DOWNLOAD / UPLOAD THE BINDER AS A .JSON FILE
+   JSON is a plain-text way of writing down data. The file looks like:
+     {
+       "app": "mtg-card-binder",
+       "version": 1,
+       "exportedAt": "2026-10-13T18:30:00.000Z",
+       "cards": { "1-1": { "name": "...", "set": "...", ... }, ... }
+     }
+   where "1-1" means page 1, pocket 1. You can keep it as a backup, or
+   upload it on another computer or browser to bring your binder there.
+   ===================================================================== */
+
+// The name written into the file, so we can recognize our own files.
+const FILE_APP_NAME = 'mtg-card-binder';
+
+// DOWNLOAD: turn the saved cards into a .json file and save it.
+// The browser saves files from a link, so we make an invisible link to
+// the file's contents, "click" it, then clean up.
+downloadButton.addEventListener('click', () => {
+  const data = {
+    app: FILE_APP_NAME,
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    cards: loadBinder()
+  };
+  // JSON.stringify writes the data as text; the "2" adds indenting so the
+  // file is easy to read in a text editor.
+  const file = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(file);
+  link.download = `card-binder-${new Date().toISOString().slice(0, 10)}.json`;  // e.g. card-binder-2026-10-13.json
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);   // free the memory the file was using
+});
+
+// UPLOAD: the Upload button opens the (hidden) file picker.
+uploadButton.addEventListener('click', () => fileInput.click());
+
+// Check one card from an uploaded file. A file could come from anywhere,
+// so we only accept cards that have everything a pocket needs, with the
+// picture coming from a secure "https://" address.
+function isValidCard(card) {
+  return card !== null && typeof card === 'object' &&
+    typeof card.name === 'string' &&
+    typeof card.set === 'string' &&
+    typeof card.number === 'string' &&
+    typeof card.image === 'string' && card.image.startsWith('https://') &&
+    (card.face === 0 || card.face === 1) &&
+    (card.lang === undefined || typeof card.lang === 'string');
+}
+
+// Read a chosen file, check it, and put its cards into the binder.
+fileInput.addEventListener('change', async () => {
+  const chosen = fileInput.files[0];
+  fileInput.value = '';             // so picking the same file again still works
+  if (!chosen) return;              // the picker was closed without a file
+
+  // Read the file's text and turn it back into data.
+  let data;
+  try {
+    data = JSON.parse(await chosen.text());
+  } catch (e) {
+    alert('That file isn\'t a readable .JSON file.');
+    return;
+  }
+
+  // Accept our own download format ({ cards: {...} }) or just the cards
+  // by themselves ({ "1-1": {...}, ... }).
+  const incoming = data && typeof data === 'object' && data.cards ? data.cards : data;
+  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
+    alert('That file doesn\'t contain any binder cards.');
+    return;
+  }
+
+  // Keep only the valid cards in pockets that exist (like "3-5").
+  const cards = {};
+  let skipped = 0;
+  for (const [key, card] of Object.entries(incoming)) {
+    const match = /^(\d+)-(\d+)$/.exec(key);
+    const page = match ? Number(match[1]) : 0;
+    const slot = match ? Number(match[2]) : 0;
+    const pocketExists = page >= 1 && page <= TOTAL_PAGES && slot >= 1 && slot <= POCKETS_PER_PAGE;
+    if (pocketExists && isValidCard(card)) cards[pocketKey(page, slot)] = card;
+    else skipped++;
+  }
+
+  const count = Object.keys(cards).length;
+  if (count === 0) {
+    alert('No usable cards were found in that file.');
+    return;
+  }
+
+  // Uploading REPLACES the binder, so check first if it already has cards.
+  const current = Object.keys(loadBinder()).length;
+  if (current > 0 && !confirm(
+    `Replace the ${current} card${current === 1 ? '' : 's'} in your binder ` +
+    `with the ${count} card${count === 1 ? '' : 's'} from this file?`)) {
+    return;
+  }
+
+  if (!saveBinder(cards)) {
+    alert('Your browser blocked saving, so the binder could not be loaded.');
+    return;
+  }
+  if (skipped > 0) {
+    alert(`Loaded ${count} cards. ${skipped} entr${skipped === 1 ? 'y was' : 'ies were'} skipped because ${skipped === 1 ? 'it wasn\'t' : 'they weren\'t'} valid.`);
+  }
+  // Reload the page so every pocket is rebuilt from the new cards.
+  // Keep the same page open by putting it in the address.
+  location.href = `index.html?page=${currentPage}`;
+});

@@ -23,6 +23,24 @@
 <body>
   <header class="topbar">
     <h1>MTG Card Binder</h1>
+
+    <div class="binder-tools">
+      <button id="downloadJson" class="tool-link" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>
+        </svg>
+        Download .JSON
+      </button>
+      <button id="uploadJson" class="tool-link" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 16V5M7 10l5-5 5 5M5 20h14"/>
+        </svg>
+        Upload .JSON
+      </button>
+      <input id="jsonFileInput" type="file" accept=".json,application/json" hidden>
+    </div>
     <button id="themeSwitch" class="theme-switch" type="button" role="switch"
             aria-checked="false" aria-label="Dark mode">
       <svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"

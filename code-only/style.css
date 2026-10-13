@@ -57,10 +57,48 @@ main {
 }
 
 .topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 16px;
   padding: 14px 16px;
+}
+
+.topbar .theme-switch { justify-self: end; }
+
+.binder-tools {
+  display: flex;
+  gap: 20px;
+}
+
+.tool-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tool-link:hover { text-decoration: underline; }
+.tool-link svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+@media (max-width: 640px) {
+  .topbar {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "title switch"
+      "tools tools";
+    row-gap: 8px;
+  }
+  .topbar h1 { grid-area: title; }
+  .topbar .theme-switch { grid-area: switch; }
+  .binder-tools { grid-area: tools; justify-content: center; }
 }
 
 .topbar h1 {
@@ -108,14 +146,17 @@ main {
 
 :root[data-theme="dark"] .theme-switch .thumb { transform: translateX(32px); }
 
-.binder {
+main {
   --top-gap: 88px;
   --binder-height: max(380px, calc(100svh - 2 * var(--top-gap)));
   --binder-chrome: 64px;
   --pocket-height: calc((var(--binder-height) - var(--binder-chrome)) / 4);
   --pocket-width: calc(var(--pocket-height) * 63 / 88);
+  --binder-width: min(100%, calc(8 * var(--pocket-width) + 126px));
+}
 
-  width: min(100%, calc(8 * var(--pocket-width) + 126px));
+.binder {
+  width: var(--binder-width);
 }
 
 .binder {
@@ -258,11 +299,12 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 16px;
+  width: var(--binder-width);
+  margin: 16px auto 0;
 }
 
 .page-link {
-  padding: 6px 2px;
+  padding: 6px 0;
   border: none;
   background: none;
   font: inherit;
@@ -285,9 +327,11 @@ main {
 }
 
 @media (max-width: 640px) {
-  .binder {
+  main {
     --binder-chrome: 56px;
-    width: min(100%, calc(4 * var(--pocket-width) + 56px));
+    --binder-width: min(100%, calc(4 * var(--pocket-width) + 56px));
+  }
+  .binder {
     grid-template-columns: 1fr;
     padding: 10px;
   }

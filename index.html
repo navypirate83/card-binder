@@ -31,6 +31,31 @@
   <!-- Top bar: the app title (left) and the light/dark switch (upper right) -->
   <header class="topbar">
     <h1>MTG Card Binder</h1>
+
+    <!--
+      Save / load the binder's cards as a .JSON file (a plain text file of
+      data). They're buttons, styled to look like links. The file picker
+      input is hidden: the Upload button opens it for you.
+    -->
+    <div class="binder-tools">
+      <button id="downloadJson" class="tool-link" type="button">
+        <!-- Down-arrow icon -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>
+        </svg>
+        Download .JSON
+      </button>
+      <button id="uploadJson" class="tool-link" type="button">
+        <!-- Up-arrow icon -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 16V5M7 10l5-5 5 5M5 20h14"/>
+        </svg>
+        Upload .JSON
+      </button>
+      <input id="jsonFileInput" type="file" accept=".json,application/json" hidden>
+    </div>
     <!--
       The theme switch. role="switch" + aria-checked tell screen readers
       it's an on/off control ("on" here means dark mode).

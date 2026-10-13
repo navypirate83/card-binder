@@ -4,6 +4,9 @@ const binder      = document.getElementById('binder');
 const prevButton  = document.getElementById('prevPage');
 const nextButton  = document.getElementById('nextPage');
 const pageStatus  = document.getElementById('pageStatus');
+const downloadButton = document.getElementById('downloadJson');
+const uploadButton   = document.getElementById('uploadJson');
+const fileInput      = document.getElementById('jsonFileInput');
 
 function setTheme(theme) {
   root.setAttribute('data-theme', theme);
@@ -300,3 +303,87 @@ binder.addEventListener('touchend', (event) => {
 const startPage = parseInt(new URLSearchParams(location.search).get('page'), 10);
 if (startPage >= 1 && startPage <= TOTAL_PAGES) currentPage = startPage;
 showPages();
+
+const FILE_APP_NAME = 'mtg-card-binder';
+
+downloadButton.addEventListener('click', () => {
+  const data = {
+    app: FILE_APP_NAME,
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    cards: loadBinder()
+  };
+  const file = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(file);
+  link.download = `card-binder-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);
+});
+
+uploadButton.addEventListener('click', () => fileInput.click());
+
+function isValidCard(card) {
+  return card !== null && typeof card === 'object' &&
+    typeof card.name === 'string' &&
+    typeof card.set === 'string' &&
+    typeof card.number === 'string' &&
+    typeof card.image === 'string' && card.image.startsWith('https://') &&
+    (card.face === 0 || card.face === 1) &&
+    (card.lang === undefined || typeof card.lang === 'string');
+}
+
+fileInput.addEventListener('change', async () => {
+  const chosen = fileInput.files[0];
+  fileInput.value = '';
+  if (!chosen) return;
+
+  let data;
+  try {
+    data = JSON.parse(await chosen.text());
+  } catch (e) {
+    alert('That file isn\'t a readable .JSON file.');
+    return;
+  }
+
+  const incoming = data && typeof data === 'object' && data.cards ? data.cards : data;
+  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
+    alert('That file doesn\'t contain any binder cards.');
+    return;
+  }
+
+  const cards = {};
+  let skipped = 0;
+  for (const [key, card] of Object.entries(incoming)) {
+    const match = /^(\d+)-(\d+)$/.exec(key);
+    const page = match ? Number(match[1]) : 0;
+    const slot = match ? Number(match[2]) : 0;
+    const pocketExists = page >= 1 && page <= TOTAL_PAGES && slot >= 1 && slot <= POCKETS_PER_PAGE;
+    if (pocketExists && isValidCard(card)) cards[pocketKey(page, slot)] = card;
+    else skipped++;
+  }
+
+  const count = Object.keys(cards).length;
+  if (count === 0) {
+    alert('No usable cards were found in that file.');
+    return;
+  }
+
+  const current = Object.keys(loadBinder()).length;
+  if (current > 0 && !confirm(
+    `Replace the ${current} card${current === 1 ? '' : 's'} in your binder ` +
+    `with the ${count} card${count === 1 ? '' : 's'} from this file?`)) {
+    return;
+  }
+
+  if (!saveBinder(cards)) {
+    alert('Your browser blocked saving, so the binder could not be loaded.');
+    return;
+  }
+  if (skipped > 0) {
+    alert(`Loaded ${count} cards. ${skipped} entr${skipped === 1 ? 'y was' : 'ies were'} skipped because ${skipped === 1 ? 'it wasn\'t' : 'they weren\'t'} valid.`);
+  }
+  location.href = `index.html?page=${currentPage}`;
+});
