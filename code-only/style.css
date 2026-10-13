@@ -297,3 +297,32 @@ main {
 @media (min-width: 720px) {
   .topbar h1 { font-size: 1.5rem; }
 }
+
+.site-footer {
+  padding: 18px 16px 28px;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footer-links a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.footer-links a:hover { text-decoration: underline; }
+
+.footer-links a[aria-current="page"] {
+  color: var(--text);
+  text-decoration: none;
+  cursor: default;
+}
