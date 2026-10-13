@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Basic page setup: text encoding, mobile scaling, and the tab title -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MTG Card Finder</title>
+
+  <!--
+    This tiny script runs BEFORE the page draws, so the saved light/dark choice
+    is applied right away. Without it, the page could flash the wrong colors.
+  -->
+  <script>
+    (function () {
+      var theme = null;
+      // Try to read the saved theme. Some browsers block storage, so we guard it.
+      try { theme = localStorage.getItem('theme'); } catch (e) {}
+      // No saved choice? Follow the device's own light/dark setting.
+      if (theme !== 'light' && theme !== 'dark') {
+        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
+  <!-- All the page's styles live in cardsearch.css -->
+  <link rel="stylesheet" href="cardsearch.css">
+</head>
+<body>
+  <!-- Top bar: the app title (left) and the light/dark switch (upper right) -->
+  <header class="topbar">
+    <h1>MTG Card Finder</h1>
+    <!--
+      The theme switch. role="switch" + aria-checked tell screen readers
+      it's an on/off control ("on" here means dark mode).
+    -->
+    <button id="themeSwitch" class="theme-switch" type="button" role="switch"
+            aria-checked="false" aria-label="Dark mode">
+      <!-- Sun icon (light mode side) -->
+      <svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4.5" fill="currentColor"/>
+        <path d="M12 1.5v2.5M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/>
+      </svg>
+      <!-- Moon icon (dark mode side) -->
+      <svg class="icon moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>
+      </svg>
+      <!-- The sliding round knob -->
+      <span class="thumb"></span>
+    </button>
+  </header>
+
+  <main>
+    <!-- Search box with the live suggestion list -->
+    <div class="search">
+      <label for="searchInput" class="visually-hidden">Card name</label>
+      <input
+        id="searchInput"
+        type="text"
+        placeholder="Search for a card name…"
+        autocomplete="off"
+        spellcheck="false"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded="false"
+        aria-controls="suggestions">
+      <ul id="suggestions" class="popup-list suggestions" role="listbox" hidden></ul>
+      <p id="hint" class="hint" aria-live="polite">Loading card names…</p>
+    </div>
+
+    <!--
+      Language picker: lists every language the shown printing was made in.
+      It sits just above the card and is as wide as the card.
+    -->
+    <div class="language-picker">
+      <label class="field-label" for="languageSelect">Language</label>
+      <select id="languageSelect" class="picker" disabled></select>
+    </div>
+
+    <!-- The card picture, with the Share button beside it -->
+    <div class="card-stage">
+      <div id="cardFrame" class="card-frame">
+        <img id="cardImage" alt="">
+      </div>
+
+      <!-- Share button (hidden until a card is shown) -->
+      <button id="shareButton" class="share-button" type="button"
+              aria-label="Share a link to this card" title="Share this card" hidden>
+        <!-- Share icon: three dots joined by two lines, shaped like "<" -->
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" aria-hidden="true">
+          <circle cx="18" cy="5" r="3" stroke="none"/>
+          <circle cx="6" cy="12" r="3" stroke="none"/>
+          <circle cx="18" cy="19" r="3" stroke="none"/>
+          <path d="M8.6 10.5l6.8-4M8.6 13.5l6.8 4" fill="none"/>
+        </svg>
+      </button>
+
+      <!--
+        Add to binder button (hidden until a card is shown). It only shows a
+        "+" sign, so aria-label gives screen readers its name and title shows
+        "Add to binder" as a tooltip when the mouse rests on it.
+      -->
+      <button id="binderButton" class="binder-button" type="button"
+              aria-label="Add to binder" title="Add to binder" hidden>
+        <!-- "+" icon: two thick lines with rounded ends crossing in the middle -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+             stroke-linecap="round" aria-hidden="true">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </button>
+
+      <!-- Confirmation message after the link is copied -->
+      <div id="shareToast" class="share-toast" role="status" hidden></div>
+    </div>
+
+    <!-- Only shown for double-sided cards -->
+    <button id="flipButton" class="flip-button" type="button" hidden>Flip card ↻</button>
+
+    <!-- Name, set, and artist of the card being shown -->
+    <p id="cardInfo" class="card-info"></p>
+
+    <!-- The two drop-down boxes: Set and Version -->
+    <div class="pickers">
+      <!-- Custom Set picker (button + pop-up list) so it can show set symbols -->
+      <div class="set-picker">
+        <span class="field-label" id="setLabel">Set</span>
+        <button id="setButton" class="picker set-button" type="button"
+                aria-haspopup="listbox" aria-expanded="false"
+                aria-labelledby="setLabel setButton" disabled></button>
+        <ul id="setList" class="popup-list set-list" role="listbox" tabindex="-1"
+            aria-labelledby="setLabel" hidden></ul>
+      </div>
+
+      <!-- Normal Version picker: lists each printing inside the chosen set -->
+      <div>
+        <label class="field-label" for="versionSelect">Version</label>
+        <select id="versionSelect" class="picker" disabled></select>
+      </div>
+    </div>
+
+    <!-- Official rulings for the card (hidden until a card is shown) -->
+    <section id="rulings" class="rulings" aria-labelledby="rulingsTitle" hidden>
+      <h2 id="rulingsTitle" class="rulings-title">Notes and Rules</h2>
+      <div id="rulingsBody"></div>
+    </section>
+  </main>
+
+  <!-- Shared code for saving and loading the binder's cards (also used by index.html) -->
+  <script src="binder-storage.js"></script>
+
+  <!-- All the page's code lives in cardsearch.js -->
+  <script src="cardsearch.js"></script>
+</body>
+</html>

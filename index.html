@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Basic page setup: text encoding, mobile scaling, and the tab title -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Card Binder</title>
+
+  <!--
+    This tiny script runs BEFORE the page draws, so the saved light/dark choice
+    is applied right away. Without it, the page could flash the wrong colors.
+    It reads the same saved "theme" as cardsearch.html, so both pages match.
+  -->
+  <script>
+    (function () {
+      var theme = null;
+      // Try to read the saved theme. Some browsers block storage, so we guard it.
+      try { theme = localStorage.getItem('theme'); } catch (e) {}
+      // No saved choice? Follow the device's own light/dark setting.
+      if (theme !== 'light' && theme !== 'dark') {
+        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
+  <!-- All the page's styles live in style.css -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Top bar: the app title (left) and the light/dark switch (upper right) -->
+  <header class="topbar">
+    <h1>Card Binder</h1>
+    <!--
+      The theme switch. role="switch" + aria-checked tell screen readers
+      it's an on/off control ("on" here means dark mode).
+    -->
+    <button id="themeSwitch" class="theme-switch" type="button" role="switch"
+            aria-checked="false" aria-label="Dark mode">
+      <!-- Sun icon (light mode side) -->
+      <svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4.5" fill="currentColor"/>
+        <path d="M12 1.5v2.5M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/>
+      </svg>
+      <!-- Moon icon (dark mode side) -->
+      <svg class="icon moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>
+      </svg>
+      <!-- The sliding round knob -->
+      <span class="thumb"></span>
+    </button>
+  </header>
+
+  <main>
+    <!--
+      The open binder. It starts empty here; javascript.js adds all
+      the pages (each with 16 pockets, showing a saved card or a "+")
+      and shows one or two pages at a time.
+    -->
+    <section id="binder" class="binder" aria-label="Card binder"></section>
+
+    <!-- Previous / Next page links, with the current page number between them -->
+    <nav class="page-nav" aria-label="Binder pages">
+      <button id="prevPage" class="page-link" type="button">&larr; Previous page</button>
+      <span id="pageStatus" class="page-status" aria-live="polite"></span>
+      <button id="nextPage" class="page-link" type="button">Next page &rarr;</button>
+    </nav>
+  </main>
+
+  <!-- Shared code for saving and loading the binder's cards -->
+  <script src="binder-storage.js"></script>
+
+  <!-- All the page's code lives in javascript.js -->
+  <script src="javascript.js"></script>
+</body>
+</html>

@@ -1,0 +1,492 @@
+/* =========================================================================
+   style.css — all the styles (colors, layout, looks) for index.html,
+   the Card Binder page.
+   ========================================================================= */
+
+/* =====================================================================
+   THEME COLORS
+   ===================================================================== */
+
+/*
+  Color "tokens" for LIGHT mode (the same ones cardsearch.html uses, plus
+  a few for the binder). Every color in the page uses these variables,
+  so switching themes only means swapping this list.
+*/
+:root {
+  --bg: #f4f1ea;
+  --surface: #ffffff;
+  --text: #1e1c19;
+  --muted: #6c675f;
+  --border: #d8d2c6;
+  --accent: #a8492a;
+  --switch-track: #e3dccf;
+  --switch-thumb: #ffffff;
+
+  /* Binder colors: a black cover, slightly lighter black pages, and
+     see-through plastic pockets. A real binder is black in any light,
+     so these only change a little between themes. */
+  --binder-cover: #121214;
+  --binder-cover-edge: #2a2a2e;
+  --binder-page: #1b1b1f;
+  --pocket-fill: #232328;
+  --pocket-edge: rgba(255, 255, 255, 0.10);
+  --pocket-shine: rgba(255, 255, 255, 0.07);
+  /* Shadow under the whole binder so it sits on the page */
+  --binder-shadow: 0 4px 8px rgba(40, 30, 20, 0.20), 0 18px 40px rgba(40, 30, 20, 0.25);
+}
+
+/*
+  Color tokens for DARK mode. These replace the light ones whenever the
+  <html> tag has data-theme="dark".
+*/
+:root[data-theme="dark"] {
+  --bg: #14151a;
+  --surface: #1e2027;
+  --text: #ece9e3;
+  --muted: #9b968e;
+  --border: #343741;
+  --accent: #e38a5c;
+  --switch-track: #2f323c;
+  --switch-thumb: #14151a;
+
+  /* On a dark background the cover needs a lighter edge to stand out */
+  --binder-cover: #0b0b0d;
+  --binder-cover-edge: #3a3c45;
+  --binder-shadow: 0 4px 8px rgba(0, 0, 0, 0.6), 0 18px 40px rgba(0, 0, 0, 0.7);
+}
+
+/* =====================================================================
+   PAGE BASICS
+   ===================================================================== */
+
+/* Make width/height include padding and borders: easier sizing math */
+*, *::before, *::after { box-sizing: border-box; }
+
+/*
+  Anything with the "hidden" attribute stays hidden, even if another
+  rule (like display: grid) would otherwise show it. javascript.js uses
+  this to hide the binder pages you're not looking at.
+*/
+[hidden] { display: none !important; }
+
+/* Page-wide basics: font, colors, and a smooth fade when the theme changes */
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  transition: background-color 0.25s, color 0.25s;
+  /* On a phone, a turning page swings out past the screen's edge.
+     "clip" cuts it off there instead of letting the page scroll sideways. */
+  overflow-x: clip;
+}
+
+/* A visible outline on buttons reached with the keyboard (Tab key) */
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+  Holds the binder and the page links. There's no width limit, so the
+  binder can grow with the browser window; the 16px side padding keeps
+  it off the window's edges. The small bottom padding leaves room under
+  the Previous / Next links without making the page scroll.
+*/
+main {
+  margin: 0 auto;
+  padding: 8px 16px 24px;
+}
+
+/* =====================================================================
+   TOP BAR AND LIGHT/DARK SWITCH  (same look as cardsearch.html)
+   ===================================================================== */
+
+/* The top bar: holds the title on the left and the theme switch on the right */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+}
+
+/* The app title in the top bar */
+.topbar h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/*
+  The switch itself: a pill-shaped button ("track").
+  margin-left: auto pushes it to the far right of the top bar.
+*/
+.theme-switch {
+  position: relative;
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 64px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--switch-track);
+  cursor: pointer;
+}
+
+/* The sun and moon icons that sit inside the track, one at each end */
+.theme-switch .icon {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.theme-switch .sun  { left: 8px;  color: #d9921c; }
+.theme-switch .moon { right: 8px; color: #8fa3d9; }
+
+/* The round "thumb" that slides left (light) or right (dark) */
+.theme-switch .thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--switch-thumb);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.25s ease;
+}
+
+/* In dark mode, slide the thumb over to the right (moon) side */
+:root[data-theme="dark"] .theme-switch .thumb { transform: translateX(32px); }
+
+/* =====================================================================
+   THE BINDER
+   ===================================================================== */
+
+/*
+  SIZING THE BINDER TO THE WINDOW
+  The binder grows and shrinks with the browser window. The goal: the
+  space BELOW the binder matches the space ABOVE it (from the top of the
+  window to the top of the binder), and the binder fills the rest.
+
+  These "custom properties" (variables, written --name) do the math:
+
+  --top-gap: the space above the binder. It's the top bar (60px tall:
+    32px switch + 14px padding above and below) + main's 8px top padding
+    + the binder's 20px top margin = 88px. If you change any of those,
+    update this number too.
+
+  --binder-height: the window's height minus that gap twice (once above,
+    once below). "svh" means "small viewport height": on phones it ignores
+    the browser's address bar, which slides in and out. It never goes
+    below 380px, so a very short window still shows a usable binder.
+
+  --binder-chrome: the parts of the binder's height that AREN'T pockets:
+    cover padding 14px x 2 + cover border 1px x 2 + page padding 8px x 2
+    + 3 seams of 6px between the 4 rows = 64px.
+
+  --pocket-height: what's left for the 4 rows of pockets, split 4 ways.
+  --pocket-width: pockets are card-shaped (63 wide for every 88 tall).
+*/
+.binder {
+  --top-gap: 88px;
+  --binder-height: max(380px, calc(100svh - 2 * var(--top-gap)));
+  --binder-chrome: 64px;
+  --pocket-height: calc((var(--binder-height) - var(--binder-chrome)) / 4);
+  --pocket-width: calc(var(--pocket-height) * 63 / 88);
+
+  /*
+    The binder's width is whatever makes those pockets fit:
+      8 pockets across (4 per page) + 6 seams of 6px + 4 page paddings of
+      8px + the 28px spine + 2 cover paddings of 14px + 2px of border
+      = 8 pockets + 126px.
+    "min(100%, ...)" stops it getting wider than the window. On a tall,
+    narrow window the width runs out first, and the binder is simply as
+    wide as it can be (with a bigger gap below).
+  */
+  width: min(100%, calc(8 * var(--pocket-width) + 126px));
+}
+
+/*
+  The open binder: the black cover with the two pages lying on it.
+  It's a "grid" with two equal columns (left page, right page).
+*/
+.binder {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;                     /* the space for the spine in the middle */
+  position: relative;
+  margin: 20px auto 0;
+  padding: 14px;
+  border: 1px solid var(--binder-cover-edge);
+  border-radius: 12px;
+  background: var(--binder-cover);
+  box-shadow: var(--binder-shadow);
+  /* Let the phone handle up/down scrolling as usual, but pass sideways
+     finger swipes to our script so it can turn the page */
+  touch-action: pan-y;
+  /* "perspective" gives 3D depth to things turning inside the binder:
+     a page swinging toward you looks bigger, like a real page lifting.
+     Smaller numbers = more dramatic 3D. */
+  perspective: 2200px;
+}
+
+/*
+  The spine: a dark groove down the middle where the binder folds.
+  "::before" draws an extra shape without needing more HTML.
+  The gradient goes dark → darker → dark to look like a fold in the cover.
+*/
+.binder::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 28px;
+  transform: translateX(-50%);
+  background: linear-gradient(to right,
+    rgba(255, 255, 255, 0.03),
+    rgba(0, 0, 0, 0.55) 50%,
+    rgba(255, 255, 255, 0.03));
+}
+
+/*
+  One page of pockets: 4 columns by 4 rows (16 pockets), like the
+  pages in the photo. The small gaps are the plastic seams between pockets.
+*/
+.binder-page {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--binder-page);
+}
+
+/*
+  One empty pocket. It keeps the real Magic card shape (63 x 88 mm)
+  so a card picture will fit perfectly once we add them.
+  - The inset shadow makes it look sunk in, like an empty sleeve.
+  - The thin light border is the edge of the plastic.
+*/
+.pocket {
+  position: relative;
+  aspect-ratio: 63 / 88;
+  border: 1px solid var(--pocket-edge);
+  border-radius: 4px;
+  background: var(--pocket-fill);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  /* Lets things inside size themselves by the pocket's width
+     (the "cqw" unit below), so the "+" grows with the binder */
+  container-type: inline-size;
+}
+
+/*
+  A soft diagonal shine across each pocket, so it looks like clear
+  plastic catching the light. It sits on top of the card picture too,
+  like a real sleeve. pointer-events: none lets clicks pass through it
+  to the link inside the pocket.
+*/
+.pocket::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg,
+    var(--pocket-shine) 0%,
+    transparent 40%,
+    transparent 70%,
+    var(--pocket-shine) 100%);
+  pointer-events: none;
+}
+
+/*
+  The white "+" in the middle of an empty pocket. It's a link to
+  cardsearch.html. It fills the whole pocket, so clicking anywhere in
+  the pocket works, and centers the "+" inside it.
+*/
+.pocket-add {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* The "+" is 35% of the pocket's width ("cqw" = 1% of the pocket's
+     width), but never smaller than 1.25rem or bigger than 4rem */
+  font-size: clamp(1.25rem, 35cqw, 4rem);
+  font-weight: 300;              /* thin "+" normally... */
+  line-height: 1;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+/* ...and a bold "+" when the mouse is over it (or it's reached by Tab) */
+.pocket-add:hover,
+.pocket-add:focus-visible {
+  font-weight: 800;
+}
+
+/* A pocket that holds a card: the whole card picture is a link */
+.pocket-card {
+  position: absolute;
+  inset: 0;
+}
+
+/* The card picture fills its pocket */
+.pocket-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Keyboard focus outline for both kinds of pocket link */
+.pocket-add:focus-visible,
+.pocket-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* =====================================================================
+   PAGE TURNING ANIMATION
+   ===================================================================== */
+
+/*
+  The "flipper" is a temporary page laid on top of the binder while a
+  page turns. The script places it exactly over the page that's turning,
+  then swings it around the spine like a door on a hinge.
+  "preserve-3d" keeps its two sides (front and back) in real 3D, so
+  we see the back side once it has turned past halfway.
+*/
+.flipper {
+  position: absolute;
+  z-index: 3;
+  transform-style: preserve-3d;
+  pointer-events: none;          /* it's just for show: can't be clicked */
+}
+
+/*
+  The two sides of the turning page. javascript.js only shows one side at
+  a time (it swaps them when the page is straight up), so cards on one
+  side can't show through the other. "backface-visibility: hidden" is a
+  backup: it hides a side whenever it faces away from you.
+*/
+.flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;   /* same thing, for Safari */
+}
+
+/* The back side starts already turned around, facing away */
+.flip-back { transform: rotateY(180deg); }
+
+/* The copied page inside each side fills it completely */
+.flip-face > .binder-page { height: 100%; }
+
+/* The plain back of a page (used on phones, where only one page shows) */
+.flip-face > .blank-page {
+  height: 100%;
+  border-radius: 6px;
+  background: var(--binder-page);
+}
+
+/*
+  The shadow a turning page casts on the binder underneath it.
+  javascript.js places it over a page, gives it a dark-at-the-spine
+  gradient, and fades it in or out as the page lifts and lands.
+  It sits above the binder's pages (z-index 2) but under the turning
+  page (z-index 3), and can't be clicked.
+*/
+.turn-shadow {
+  position: absolute;
+  z-index: 2;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+/*
+  A dark layer over each side that the script fades in and out while
+  the page turns, so the page looks shadowed as it lifts off the binder.
+*/
+.flip-shade {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  background: #000000;
+  opacity: 0;
+}
+
+/* =====================================================================
+   PREVIOUS / NEXT PAGE LINKS
+   ===================================================================== */
+
+/* The row under the binder: "Previous page" left, page number middle,
+   "Next page" right */
+.page-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/*
+  The Previous / Next controls. They're real buttons (so they work with
+  the keyboard and screen readers) but styled to look like text links.
+*/
+.page-link {
+  padding: 6px 2px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+.page-link:hover { text-decoration: underline; }
+
+/* At the first or last page there's nowhere to go, so grey the link out */
+.page-link:disabled {
+  color: var(--muted);
+  opacity: 0.5;
+  cursor: default;
+  text-decoration: none;
+}
+
+/* "Pages 1–2 of 10" in the middle of the row */
+.page-status {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/*
+  Small screens (phones): two pages side by side would be tiny, so the
+  binder shows ONE page at a time (the script hides the other) and the
+  spine in the middle is hidden.
+  The size math changes to match: 4 pockets across, and the cover
+  padding is 10px instead of 14px, so:
+    - not-pocket height = 20px padding + 2px border + 16px page padding
+      + 18px of seams = 56px
+    - width = 4 pockets + 18px seams + 16px page padding + 20px padding
+      + 2px border = 4 pockets + 56px
+  Keep this 640px number in sync with PHONE_QUERY in javascript.js.
+*/
+@media (max-width: 640px) {
+  .binder {
+    --binder-chrome: 56px;
+    width: min(100%, calc(4 * var(--pocket-width) + 56px));
+    grid-template-columns: 1fr;
+    padding: 10px;
+  }
+  .binder::before { display: none; }
+}
+
+/* On wider screens, give the title a little more size (same as cardsearch.html) */
+@media (min-width: 720px) {
+  .topbar h1 { font-size: 1.5rem; }
+}

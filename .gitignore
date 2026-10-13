@@ -1,0 +1,3 @@
+# Files git should NOT upload.
+# .claude/ holds local settings for previewing the app on this computer only.
+.claude/

@@ -1,0 +1,663 @@
+/* =========================================================================
+   cardsearch.css — all the styles (colors, layout, looks) for
+   cardsearch.html, the card search page.
+   ========================================================================= */
+
+/* =====================================================================
+   THEME COLORS
+   ===================================================================== */
+
+/*
+  Color "tokens" for LIGHT mode. Every color in the page uses these
+  variables, so switching themes only means swapping this list.
+*/
+:root {
+  --bg: #f4f1ea;
+  --surface: #ffffff;
+  --surface-hover: #f0ebe1;
+  --text: #1e1c19;
+  --muted: #6c675f;
+  --border: #d8d2c6;
+  --accent: #a8492a;
+  --accent-text: #ffffff;
+  --error: #c0392b;
+  /* General shadow for pop-up lists and the Share button */
+  --shadow: 0 10px 30px rgba(40, 30, 20, 0.15);
+  /* The card's own shadow: a tight one close to the edges plus a soft one
+     spreading below, so it looks like it's resting just above the page */
+  --card-shadow: 0 2px 4px rgba(40, 30, 20, 0.18), 0 8px 18px rgba(40, 30, 20, 0.16);
+  /* A bigger, softer shadow used while the card is lifted (mouse over) */
+  --card-shadow-lift: 0 6px 10px rgba(40, 30, 20, 0.16), 0 22px 36px rgba(40, 30, 20, 0.22);
+  --icon-filter: none;          /* set symbols are black SVGs: fine on light */
+  --switch-track: #e3dccf;
+  --switch-thumb: #ffffff;
+  --radius: 10px;
+}
+
+/*
+  Color tokens for DARK mode. These replace the light ones whenever the
+  <html> tag has data-theme="dark".
+*/
+:root[data-theme="dark"] {
+  --bg: #14151a;
+  --surface: #1e2027;
+  --surface-hover: #2a2d36;
+  --text: #ece9e3;
+  --muted: #9b968e;
+  --border: #343741;
+  --accent: #e38a5c;
+  --accent-text: #1a1206;
+  --error: #f07167;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  /* Dark backgrounds hide shadows, so these are darker and stronger */
+  --card-shadow: 0 2px 4px rgba(0, 0, 0, 0.6), 0 10px 22px rgba(0, 0, 0, 0.65);
+  --card-shadow-lift: 0 8px 12px rgba(0, 0, 0, 0.6), 0 26px 40px rgba(0, 0, 0, 0.75);
+  --icon-filter: invert(1);     /* flip black set symbols to white */
+  --switch-track: #2f323c;
+  --switch-thumb: #14151a;
+}
+
+/* =====================================================================
+   PAGE BASICS
+   ===================================================================== */
+
+/* Make width/height include padding and borders: easier sizing math */
+*, *::before, *::after { box-sizing: border-box; }
+
+/*
+  Anything with the "hidden" attribute stays hidden, even if another
+  rule (like display: block) would otherwise show it.
+*/
+[hidden] { display: none !important; }
+
+/* Page-wide basics: font, colors, and a smooth fade when the theme changes */
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  transition: background-color 0.25s, color 0.25s;
+}
+
+/*
+  One shared focus outline for every button and drop-down, shown when
+  they're reached with the keyboard (Tab key) so you can see where you are.
+*/
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Hidden label text that screen readers still announce */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Centers the content and limits how wide it can get on big screens */
+main {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 8px 16px 48px;
+}
+
+/* =====================================================================
+   TOP BAR AND LIGHT/DARK SWITCH
+   ===================================================================== */
+
+/* The top bar: holds the title on the left and the theme switch on the right */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+}
+
+/* The app title in the top bar */
+.topbar h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/*
+  The switch itself: a pill-shaped button ("track").
+  margin-left: auto pushes it to the far right of the top bar.
+*/
+.theme-switch {
+  position: relative;
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 64px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--switch-track);
+  cursor: pointer;
+}
+
+/* The sun and moon icons that sit inside the track, one at each end */
+.theme-switch .icon {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.theme-switch .sun  { left: 8px;  color: #d9921c; }
+.theme-switch .moon { right: 8px; color: #8fa3d9; }
+
+/* The round "thumb" that slides left (light) or right (dark) */
+.theme-switch .thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--switch-thumb);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.25s ease;
+}
+
+/* In dark mode, slide the thumb over to the right (moon) side */
+:root[data-theme="dark"] .theme-switch .thumb { transform: translateX(32px); }
+
+/* =====================================================================
+   SEARCH BOX AND SUGGESTIONS
+   ===================================================================== */
+
+/* Wrapper so the suggestion list can be positioned under the input */
+.search { position: relative; }
+
+/* The search text box (it draws its own focus glow, below) */
+.search input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+}
+
+/* While typing in the box: accent-colored border plus a soft glow */
+.search input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/*
+  Shared look for the two pop-up lists: card-name suggestions and the
+  list of sets. They float over the page below whatever opened them.
+*/
+.popup-list {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  outline: none;
+}
+
+/* One row in either pop-up list */
+.popup-list li {
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* The row under the mouse, or picked with the arrow keys */
+.popup-list li.active,
+.popup-list li:hover { background: var(--surface-hover); }
+
+/* The suggestion list can be taller, but never more than 60% of the screen */
+.suggestions { max-height: 60vh; }
+
+/* The letters in a suggestion that match what was typed */
+.suggestions mark { background: none; color: var(--accent); font-weight: 700; }
+
+/* Small helper text under the search box (e.g., "type 3 letters") */
+.hint {
+  margin: 8px 2px 0;
+  min-height: 1.2em;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* The helper text turns red when something goes wrong (e.g., card not found) */
+.hint.error { color: var(--error); }
+
+/*
+  The Language picker between the search box and the card. It's centered
+  and no wider than the card (400px), so it lines up with the card below.
+  The "LANGUAGE" label and the drop-down sit side by side in one row
+  ("flex"), so the whole thing stays short.
+*/
+.language-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 400px;
+  margin: 14px auto 0;
+}
+
+/* The label beside the drop-down: no gap underneath like the other labels */
+.language-picker .field-label {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/*
+  The drop-down: about one third the height of the search box (which is
+  about 50px tall), so 17px, with smaller text to fit. It uses the shared
+  ".picker" look (further down) for colors and its down-arrow, and these
+  rules shrink it. "flex: 1" lets it fill the rest of the row.
+*/
+.language-picker .picker {
+  flex: 1;
+  height: 17px;
+  min-height: 0;
+  padding: 0 24px 0 8px;
+  font-size: 0.7rem;
+  line-height: 15px;
+  border-radius: 5px;
+  background-position: calc(100% - 13px) 50%, calc(100% - 9px) 50%;
+  background-size: 4px 4px;
+}
+
+/* =====================================================================
+   CARD PICTURE, SHARE BUTTON, FLIP BUTTON
+   ===================================================================== */
+
+/*
+  An invisible box exactly the size of the card, centered on the page.
+  The Share button is positioned relative to this box, so it can sit
+  beside the card without pushing the card off-center.
+*/
+.card-stage {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  margin: 16px auto 0;
+}
+
+/* Holds the card picture and keeps the real card shape (63 x 88 mm) */
+.card-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 488 / 680;
+  border-radius: 4.75% / 3.5%;   /* matches real card corner rounding */
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+
+/*
+  Bounce the card up when the mouse passes over it.
+  - "transition" animates any change to the card's position over 0.45s.
+  - The cubic-bezier numbers make a springy curve: the card shoots up a
+    bit past its target, then settles back — that's the "bounce".
+  - On hover the card lifts 12px and its shadow grows, like it's rising
+    off the table. Moving the mouse away eases it back down.
+  Wrapped in "(hover: hover)" so it only applies on devices with a mouse
+  (touch screens would otherwise get stuck in the lifted state).
+*/
+@media (hover: hover) {
+  .card-frame {
+    transition: transform 0.45s cubic-bezier(0.34, 1.8, 0.64, 1),
+                box-shadow 0.45s ease;
+  }
+  .card-frame:hover {
+    transform: translateY(-12px);
+    box-shadow: var(--card-shadow-lift);
+  }
+}
+
+/* People who turn on "reduce motion" in their system settings get no bounce */
+@media (prefers-reduced-motion: reduce) {
+  .card-frame { transition: none; }
+  .card-frame:hover { transform: none; }
+}
+
+/* The card picture fills the frame */
+.card-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.2s;
+}
+
+/* While a new picture is downloading, dim the old one */
+.card-frame.loading img { opacity: 0.35; }
+
+/* A spinning ring shown on top of the card while it loads */
+.card-frame.loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* The spinning motion used by the loading ring */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/*
+  The round Share button. "position: absolute" takes it out of the normal
+  layout, and "left: 100% + 12px" places it just past the card's right
+  edge — so the card stays exactly where it was.
+  "top: 33.333%" moves its top edge one third of the way down the card,
+  and "translateY(-50%)" pulls it back up by half its own height, so the
+  button's middle sits exactly one third of the way down.
+*/
+.share-button {
+  position: absolute;
+  top: 33.333%;
+  left: calc(100% + 12px);
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.share-button:hover { color: var(--accent); }
+.share-button svg { width: 20px; height: 20px; }
+
+/*
+  The "Add to binder" button: a round button with a "+" sign. It's the
+  same size and shape as the Share button and sits beside the card like
+  it, but another third of the card lower (two thirds of the way down).
+  It uses the accent color so it stands out as the main action.
+*/
+.binder-button {
+  position: absolute;
+  top: 66.667%;
+  left: calc(100% + 12px);
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--accent-text);
+  background: var(--accent);
+  border: none;
+  border-radius: 50%;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+/* The "+" drawing inside the button */
+.binder-button svg { width: 22px; height: 22px; }
+
+/* On hover: a little brighter, and the "+" turns a quarter turn
+   (it looks the same after turning, so it just "spins" into place) */
+.binder-button:hover { filter: brightness(1.1); }
+.binder-button:hover svg { transform: rotate(90deg); }
+.binder-button svg { transition: transform 0.25s ease; }
+
+/* People who turn on "reduce motion" get no spin */
+@media (prefers-reduced-motion: reduce) {
+  .binder-button:hover svg { transform: none; }
+}
+
+/*
+  Little "Link copied!" message that appears just under the Share button
+  (half the button's 44px height + an 8px gap = 30px below its middle).
+*/
+.share-toast {
+  position: absolute;
+  top: calc(33.333% + 30px);
+  left: calc(100% + 12px);
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: var(--accent-text);
+  background: var(--accent);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+/*
+  On narrow screens (phones) there's no empty space to the right of the
+  card, so the Share and Add to binder buttons float just inside the
+  card's right edge, at the same heights. The card still doesn't move.
+*/
+@media (max-width: 560px) {
+  .share-button,
+  .binder-button,
+  .share-toast {
+    left: auto;
+    right: 10px;
+    z-index: 2;
+  }
+  .share-button { background: color-mix(in srgb, var(--surface) 85%, transparent); }
+}
+
+/* "Flip card" button for double-sided cards */
+.flip-button {
+  display: block;
+  margin: 12px auto 0;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.flip-button:hover { background: var(--surface-hover); }
+
+/* Name / set / artist text under the card */
+.card-info {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.card-info strong { color: var(--text); font-size: 1.05rem; }
+.card-info a { color: var(--accent); }
+
+/* =====================================================================
+   SET AND VERSION DROP-DOWNS
+   ===================================================================== */
+
+/* Stacks the Set and Version pickers under the card */
+.pickers {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+/* Small heading above each picker */
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+/*
+  Shared look for both pickers: the custom Set button and the normal
+  Version drop-down. "appearance: none" removes the browser's own
+  styling so both look the same.
+*/
+.picker {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 40px 10px 12px;
+  font: inherit;
+  font-size: 0.95rem;
+  text-align: left;
+  color: var(--text);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  /* Draw our own little down-arrow on the right side, out of two
+     triangles made with gradients */
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* Greyed-out look before a card has been searched */
+.picker:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* The options inside the Version drop-down use theme colors too */
+.picker option { background: var(--surface); color: var(--text); }
+
+/*
+  The Set picker is custom-built (not a normal <select>) because
+  normal drop-downs can't show pictures, and we need the set symbol.
+  Its button and its rows lay out "symbol | CODE | Name" in a line.
+*/
+.set-picker { position: relative; }
+.set-button,
+.set-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The pop-up list of sets has a fixed maximum height and scrolls */
+.set-list { max-height: 320px; }
+
+/* The row for the set currently being shown */
+.set-list li[aria-selected="true"] { font-weight: 600; }
+
+/* The set symbol picture (flipped to white in dark mode) */
+.set-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  object-fit: contain;
+  filter: var(--icon-filter);
+}
+
+/* The "|" separators between symbol, code, and name */
+.sep { color: var(--muted); }
+
+/* The set code, e.g. "LEA", in a fixed-width font so they line up */
+.set-code {
+  flex-shrink: 0;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-weight: 600;
+}
+
+/* The set name: cut off with "…" if it's too long for the row */
+.set-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =====================================================================
+   NOTES AND RULES (official rulings for the card)
+   ===================================================================== */
+
+/* The whole box: a rounded panel below the drop-downs */
+.rulings {
+  margin-top: 28px;
+  overflow: hidden;            /* keeps the title bar inside the rounded corners */
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* The title block across the top of the box */
+.rulings-title {
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 1rem;
+  font-weight: 700;
+  background: var(--surface-hover);
+  border-bottom: 1px solid var(--border);
+}
+
+/* The list of rulings (no bullet points) */
+.rulings-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One ruling, with a thin line between each */
+.rulings-list li {
+  padding: 14px 16px;
+  line-height: 1.55;
+}
+.rulings-list li + li { border-top: 1px solid var(--border); }
+
+/* The date (and who published it) above each ruling */
+.ruling-date {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* Message shown while loading, or when a card has no rulings */
+.rulings-message {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* =====================================================================
+   WIDER SCREENS
+   ===================================================================== */
+
+/*
+  On wider screens (tablets and up), put the two pickers side by side
+  and give the title a little more size.
+*/
+@media (min-width: 720px) {
+  main { max-width: 760px; }
+  .topbar h1 { font-size: 1.5rem; }
+  .pickers { grid-template-columns: 1fr 1fr; }
+}
