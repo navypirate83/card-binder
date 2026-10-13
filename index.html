@@ -4,7 +4,7 @@
   <!-- Basic page setup: text encoding, mobile scaling, and the tab title -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Card Binder</title>
+  <title>MTG Card Binder</title>
 
   <!--
     This tiny script runs BEFORE the page draws, so the saved light/dark choice
@@ -30,7 +30,7 @@
 <body>
   <!-- Top bar: the app title (left) and the light/dark switch (upper right) -->
   <header class="topbar">
-    <h1>Card Binder</h1>
+    <h1>MTG Card Binder</h1>
     <!--
       The theme switch. role="switch" + aria-checked tell screen readers
       it's an on/off control ("on" here means dark mode).
@@ -67,6 +67,20 @@
       <button id="nextPage" class="page-link" type="button">Next page &rarr;</button>
     </nav>
   </main>
+
+  <!--
+    Footer: links to every page in the project (the same list is on
+    cardsearch.html). aria-current marks the page you're on: screen
+    readers say "current page", and style.css shows it as plain bold text.
+  -->
+  <footer class="site-footer">
+    <nav aria-label="All pages">
+      <ul class="footer-links">
+        <li><a href="index.html" aria-current="page">MTG Card Binder</a></li>
+        <li><a href="cardsearch.html">MTG Card Finder</a></li>
+      </ul>
+    </nav>
+  </footer>
 
   <!-- Shared code for saving and loading the binder's cards -->
   <script src="binder-storage.js"></script>

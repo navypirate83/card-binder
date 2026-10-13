@@ -147,6 +147,20 @@
     </section>
   </main>
 
+  <!--
+    Footer: links to every page in the project (the same list is on
+    index.html). aria-current marks the page you're on: screen readers
+    say "current page", and cardsearch.css shows it as plain bold text.
+  -->
+  <footer class="site-footer">
+    <nav aria-label="All pages">
+      <ul class="footer-links">
+        <li><a href="index.html">MTG Card Binder</a></li>
+        <li><a href="cardsearch.html" aria-current="page">MTG Card Finder</a></li>
+      </ul>
+    </nav>
+  </footer>
+
   <!-- Shared code for saving and loading the binder's cards (also used by index.html) -->
   <script src="binder-storage.js"></script>
 

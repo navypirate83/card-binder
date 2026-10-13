@@ -490,3 +490,44 @@ main {
 @media (min-width: 720px) {
   .topbar h1 { font-size: 1.5rem; }
 }
+
+/* =====================================================================
+   FOOTER: LINKS TO EVERY PAGE
+   (the same rules are in style.css and cardsearch.css)
+   ===================================================================== */
+
+/* The strip at the very bottom of the page, with a thin line above it */
+.site-footer {
+  padding: 18px 16px 28px;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+/*
+  The list of page links: no bullets, centered, side by side.
+  "flex-wrap" lets them drop onto a second line on a narrow phone.
+*/
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Each link uses the accent color, underlined when the mouse is over it */
+.footer-links a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.footer-links a:hover { text-decoration: underline; }
+
+/* The link to the page you're already on looks like plain bold text */
+.footer-links a[aria-current="page"] {
+  color: var(--text);
+  text-decoration: none;
+  cursor: default;
+}
