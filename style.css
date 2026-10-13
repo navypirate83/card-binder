@@ -91,12 +91,12 @@ button:focus-visible {
 /*
   Holds the binder and the page links. There's no width limit, so the
   binder can grow with the browser window; the 16px side padding keeps
-  it off the window's edges. The small bottom padding leaves room under
-  the Previous / Next links without making the page scroll.
+  it off the window's edges. The small bottom padding is a little space
+  between the Previous / Next links and the footer.
 */
 main {
   margin: 0 auto;
-  padding: 8px 16px 24px;
+  padding: 8px 16px 12px;
 }
 
 /* =====================================================================
@@ -226,9 +226,9 @@ main {
 
 /*
   SIZING THE BINDER TO THE WINDOW
-  The binder grows and shrinks with the browser window. The goal: the
-  space BELOW the binder matches the space ABOVE it (from the top of the
-  window to the top of the binder), and the binder fills the rest.
+  The binder grows and shrinks with the browser window, filling the
+  height left over once everything above and below it has its space.
+  That way the whole page fits in the window with no scrolling.
 
   These "custom properties" (variables, written --name) do the math:
 
@@ -237,10 +237,20 @@ main {
     + the binder's 20px top margin = 88px. If you change any of those,
     update this number too.
 
-  --binder-height: the window's height minus that gap twice (once above,
-    once below). "svh" means "small viewport height": on phones it ignores
-    the browser's address bar, which slides in and out. It never goes
-    below 380px, so a very short window still shows a usable binder.
+  --bottom-space: everything below the binder:
+      16px gap + 33px Previous / Next row + main's 12px bottom padding
+      + 43px footer (1px line + 10px padding + 20px text + 12px padding)
+      + 2px spare, because screens set to zoom levels like 125% round
+        sizes to fractions of a pixel, which could add a 1px scroll
+      = 106px.
+    If you change any of those (or add something under the binder),
+    update this number too, or the page will start to scroll.
+
+  --binder-height: the window's height minus the space above and below.
+    "svh" means "small viewport height": on phones it ignores the
+    browser's address bar, which slides in and out. It never goes below
+    380px, so a very short window still shows a usable binder (the page
+    scrolls a little in that case).
 
   --binder-chrome: the parts of the binder's height that AREN'T pockets:
     cover padding 14px x 2 + cover border 1px x 2 + page padding 8px x 2
@@ -262,7 +272,8 @@ main {
 */
 main {
   --top-gap: 88px;
-  --binder-height: max(380px, calc(100svh - 2 * var(--top-gap)));
+  --bottom-space: 106px;
+  --binder-height: max(380px, calc(100svh - var(--top-gap) - var(--bottom-space)));
   --binder-chrome: 64px;
   --pocket-height: calc((var(--binder-height) - var(--binder-chrome)) / 4);
   --pocket-width: calc(var(--pocket-height) * 63 / 88);
@@ -563,14 +574,20 @@ main {
 
 /* =====================================================================
    FOOTER: LINKS TO EVERY PAGE
-   (the same rules are in style.css and cardsearch.css)
+   (cardsearch.css has the same rules, except this page's footer is
+   slimmer so the whole binder page fits in the window without scrolling)
    ===================================================================== */
 
-/* The strip at the very bottom of the page, with a thin line above it */
+/*
+  The strip at the very bottom of the page, with a thin line above it.
+  Its height (43px) is part of --bottom-space in the binder sizing above;
+  "line-height: 20px" fixes the text's height so that number stays true.
+*/
 .site-footer {
-  padding: 18px 16px 28px;
+  padding: 10px 16px 12px;
   border-top: 1px solid var(--border);
   font-size: 0.9rem;
+  line-height: 20px;
 }
 
 /*

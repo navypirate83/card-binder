@@ -53,7 +53,7 @@ button:focus-visible {
 
 main {
   margin: 0 auto;
-  padding: 8px 16px 24px;
+  padding: 8px 16px 12px;
 }
 
 .topbar {
@@ -148,7 +148,8 @@ main {
 
 main {
   --top-gap: 88px;
-  --binder-height: max(380px, calc(100svh - 2 * var(--top-gap)));
+  --bottom-space: 106px;
+  --binder-height: max(380px, calc(100svh - var(--top-gap) - var(--bottom-space)));
   --binder-chrome: 64px;
   --pocket-height: calc((var(--binder-height) - var(--binder-chrome)) / 4);
   --pocket-width: calc(var(--pocket-height) * 63 / 88);
@@ -343,9 +344,10 @@ main {
 }
 
 .site-footer {
-  padding: 18px 16px 28px;
+  padding: 10px 16px 12px;
   border-top: 1px solid var(--border);
   font-size: 0.9rem;
+  line-height: 20px;
 }
 
 .footer-links {
