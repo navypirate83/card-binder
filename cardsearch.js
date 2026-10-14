@@ -1016,11 +1016,24 @@ shareButton.addEventListener('click', async () => {
 /* =====================================================================
    ADDING THE CARD TO THE BINDER
    (uses loadBinder, saveBinder, pocketKey and firstEmptyPocket from
-   binder-storage.js, which index.html shares)
+   binder-storage.js, which the binder pages share)
    ===================================================================== */
 
-// Which binder pocket we're filling. When you click a pocket's "+" (or a
-// card already in a pocket), index.html opens this page with
+// Which binder to add to. The binder page puts it in the address
+// ("?binder=1AbC..."). If this page was opened on its own, use the binder
+// opened most recently. (null = no binder opened yet in this browser.)
+const targetBinderId = currentBinderId() || storageGet(LAST_BINDER_KEY) || null;
+
+// Show the footer link back to that binder, with its name.
+if (targetBinderId) {
+  const backLink = document.getElementById('backToBinderLink');
+  backLink.textContent = binderName(targetBinderId);
+  backLink.href = `binder.html?binder=${encodeURIComponent(targetBinderId)}`;
+  document.getElementById('backToBinderItem').hidden = false;
+}
+
+// Which pocket we're filling. When you click a pocket's "+" (or a card
+// already in a pocket), binder.html opens this page with
 // "?binderPage=3&binderSlot=5" in the address. If those are missing
 // (this page was opened directly), it stays null and the card goes
 // into the first empty pocket instead.
@@ -1042,12 +1055,17 @@ function binderImageFor(print, face) {
 
 // Clicking "Add to binder": save the card being shown (this exact set,
 // version and side) into the pocket, then go back to the binder, opened
-// to the page with that pocket so the new card is in view.
+// to the page with that pocket so the new card is in view. (The binder
+// page then saves the change to Google Drive.)
 binderButton.addEventListener('click', () => {
   const print = state.currentPrint;
   if (!print) return;
+  if (!targetBinderId) {
+    setHint('Open one of your binders first (My Binders, at the bottom of the page).', true);
+    return;
+  }
 
-  const cards = loadBinder();
+  const cards = loadBinder(targetBinderId);
   const pocket = binderTarget || firstEmptyPocket(cards);
   if (!pocket) {
     setHint('Your binder is full. Click a card in the binder to replace it.', true);
@@ -1067,11 +1085,11 @@ binderButton.addEventListener('click', () => {
     image: binderImageFor(shown, face)
   };
 
-  if (!saveBinder(cards)) {
+  if (!saveBinder(cards, targetBinderId)) {
     setHint('Your browser blocked saving, so the card could not be added.', true);
     return;
   }
-  location.href = `index.html?page=${pocket.page}`;
+  location.href = `binder.html?binder=${encodeURIComponent(targetBinderId)}&page=${pocket.page}`;
 });
 
 // If the page was opened from a shared link (?set=...&number=...),
@@ -1105,3 +1123,7 @@ loadCardNames();
 
 // Finally, open the shared card if the link included one.
 openSharedLinkIfAny();
+
+// The "Sign out" link at the bottom right (google-drive.js saves any
+// unsaved changes first). Afterwards, go to the sign-in screen.
+setUpFooterSignOut(() => { location.href = 'index.html'; });

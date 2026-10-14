@@ -9,7 +9,7 @@
   <!--
     This tiny script runs BEFORE the page draws, so the saved light/dark choice
     is applied right away. Without it, the page could flash the wrong colors.
-    It reads the same saved "theme" as cardsearch.html, so both pages match.
+    It reads the same saved "theme" as the other pages, so they all match.
   -->
   <script>
     (function () {
@@ -24,38 +24,13 @@
     })();
   </script>
 
-  <!-- All the page's styles live in style.css -->
-  <link rel="stylesheet" href="style.css">
+  <!-- All the page's styles live in landing.css -->
+  <link rel="stylesheet" href="landing.css">
 </head>
 <body>
   <!-- Top bar: the app title (left) and the light/dark switch (upper right) -->
   <header class="topbar">
     <h1>MTG Card Binder</h1>
-
-    <!--
-      Save / load the binder's cards as a .JSON file (a plain text file of
-      data). They're buttons, styled to look like links. The file picker
-      input is hidden: the Upload button opens it for you.
-    -->
-    <div class="binder-tools">
-      <button id="downloadJson" class="tool-link" type="button">
-        <!-- Down-arrow icon -->
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>
-        </svg>
-        Download .JSON
-      </button>
-      <button id="uploadJson" class="tool-link" type="button">
-        <!-- Up-arrow icon -->
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 16V5M7 10l5-5 5 5M5 20h14"/>
-        </svg>
-        Upload .JSON
-      </button>
-      <input id="jsonFileInput" type="file" accept=".json,application/json" hidden>
-    </div>
     <!--
       The theme switch. role="switch" + aria-checked tell screen readers
       it's an on/off control ("on" here means dark mode).
@@ -79,51 +54,174 @@
 
   <main>
     <!--
-      The open binder. It starts empty here; javascript.js adds all
-      the pages (each with 16 pockets, showing a saved card or a "+")
-      and shows one or two pages at a time.
+      SIGNED OUT: the sign-in screen, centered on the page.
+      landing.js shows this or the binder shelf below, never both.
     -->
-    <section id="binder" class="binder" aria-label="Card binder">
+    <section id="signedOutView" class="sign-in" aria-labelledby="signInTitle" hidden>
+      <h2 id="signInTitle" class="sign-in-title">Your Magic card binders</h2>
+      <p class="sign-in-text">
+        Sign in with your Google account. Your binders are saved in your own
+        Google Drive, so you can open them on any computer or phone.
+      </p>
+
       <!--
-        The "remove card" spot: a red circle with an X in the middle of the
-        binder. It's hidden until a card is being dragged; dropping the card
-        on it takes the card out of the binder. (aria-hidden: it only works
-        with dragging, so screen readers skip it.)
+        The sign-in button, styled the way Google asks: white, with Google's
+        colored "G" logo and the words "Sign in with Google".
       -->
-      <div id="binderTrash" class="binder-trash" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-             stroke-linecap="round">
-          <path d="M7 7l10 10M17 7L7 17"/>
+      <button id="signInButton" class="google-button" type="button">
+        <!-- Google's "G" logo, drawn in its four colors -->
+        <svg class="google-logo" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
         </svg>
-      </div>
+        Sign in with Google
+      </button>
+
+      <!-- Messages about signing in (for example if it was cancelled) -->
+      <p id="signInMessage" class="sign-in-message" role="status"></p>
     </section>
 
-    <!-- Previous / Next page links, with the current page number between them -->
-    <nav class="page-nav" aria-label="Binder pages">
-      <button id="prevPage" class="page-link" type="button">&larr; Previous page</button>
-      <span id="pageStatus" class="page-status" aria-live="polite"></span>
-      <button id="nextPage" class="page-link" type="button">Next page &rarr;</button>
-    </nav>
+    <!--
+      SIGNED IN: who's signed in, then the shelf of binders in a 3 x 3 grid.
+      landing.js fills the grid with a closed binder for each of the user's
+      binders, plus a "+" binder for making a new one (up to 9 in all).
+      Binders can be dragged to put them in order, or onto the edit or
+      delete circles (below). (Sign out is in the footer, at the bottom right.)
+    -->
+    <section id="signedInView" class="shelf-area" aria-labelledby="shelfTitle" hidden>
+      <div class="account-line">
+        <span id="accountName"></span>
+      </div>
+
+      <h2 id="shelfTitle" class="visually-hidden">My binders</h2>
+      <div id="binderShelf" class="binder-shelf"></div>
+
+      <!-- Messages about loading or making binders -->
+      <p id="shelfMessage" class="shelf-message" role="status"></p>
+    </section>
+
+    <!--
+      The "New binder" window that opens when the "+" binder is clicked.
+      A <dialog> is a pop-up window built into the browser: it sits on top of
+      the page and dims everything behind it. Inside is a form with a row of
+      choices (Magic's color symbols, or None). landing.js adds the choices
+      and makes the binder when "Create binder" is clicked.
+      method="dialog" means the form's buttons just close the window.
+    -->
+    <dialog id="newBinderDialog" class="new-binder-dialog" aria-labelledby="newBinderTitle">
+      <form method="dialog">
+        <h2 id="newBinderTitle" class="dialog-title">New binder</h2>
+        <fieldset class="color-choices">
+          <legend class="dialog-text">Choose a color symbol for the cover, or none.</legend>
+          <div id="colorChoices" class="color-grid"></div>
+        </fieldset>
+        <!-- "Create binder" comes first so pressing Enter creates the binder;
+             landing.css shows the buttons in reverse order (Cancel on the left) -->
+        <div class="dialog-buttons">
+          <button value="create" class="dialog-button primary" type="submit">Create binder</button>
+          <button value="cancel" class="dialog-button" type="submit">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!--
+      The "Binder properties" window: opens when a binder is dropped on the
+      pencil (edit) circle. Rename the binder and/or change its cover symbol.
+      maxlength stops typing past the character limit, so the name always
+      fits on one line of the cover's label. landing.js fills in the choices.
+    -->
+    <dialog id="editBinderDialog" class="new-binder-dialog" aria-labelledby="editBinderTitle">
+      <form method="dialog">
+        <h2 id="editBinderTitle" class="dialog-title">Binder properties</h2>
+        <label class="field-label" for="binderNameInput">Name</label>
+        <div class="name-field">
+          <input id="binderNameInput" class="name-input" type="text"
+                 maxlength="12" autocomplete="off" spellcheck="false" required>
+          <!-- "5 / 12": how many characters are used of the limit -->
+          <span id="nameCount" class="name-count" aria-live="polite"></span>
+        </div>
+        <fieldset class="color-choices">
+          <legend class="dialog-text">Cover symbol</legend>
+          <div id="editColorChoices" class="color-grid"></div>
+        </fieldset>
+        <!-- "Save" comes first so pressing Enter saves (shown on the right) -->
+        <div class="dialog-buttons">
+          <button value="save" class="dialog-button primary" type="submit">Save</button>
+          <button value="cancel" class="dialog-button" type="submit" formnovalidate>Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!--
+      The "Delete binder?" window: opens when a binder is dropped on the red
+      X circle. It asks first, with Yes and No buttons. landing.js fills in
+      the binder's name and card count.
+    -->
+    <dialog id="deleteBinderDialog" class="new-binder-dialog" aria-labelledby="deleteBinderTitle">
+      <form method="dialog">
+        <h2 id="deleteBinderTitle" class="dialog-title">Delete this binder?</h2>
+        <p id="deleteBinderText" class="dialog-text"></p>
+        <!-- "No" comes first so pressing Enter does the safe thing. These
+             buttons show in normal order: No on the left, Yes on the right -->
+        <div class="dialog-buttons normal-order">
+          <button value="no" class="dialog-button" type="submit">No</button>
+          <button value="yes" class="dialog-button danger" type="submit">Yes, delete</button>
+        </div>
+      </form>
+    </dialog>
   </main>
 
   <!--
-    Footer: links to every page in the project (the same list is on
-    cardsearch.html). aria-current marks the page you're on: screen
-    readers say "current page", and style.css shows it as plain bold text.
+    Drop spots that appear only while a binder is being dragged:
+    - the pencil circle at the top: drop a binder there to edit it
+    - the red X circle at the bottom middle (above the footer links): drop a
+      binder there to delete it (after asking)
+    aria-hidden: they only work with dragging, so screen readers skip them.
+  -->
+  <div id="editDropZone" class="drop-zone edit-zone" aria-hidden="true">
+    <!-- Pencil icon -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 20h4L19 9l-4-4L4 16v4z"/>
+      <path d="M13.5 6.5l4 4"/>
+    </svg>
+  </div>
+  <div id="deleteDropZone" class="drop-zone delete-zone" aria-hidden="true">
+    <!-- X icon -->
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+         stroke-linecap="round">
+      <path d="M7 7l10 10M17 7L7 17"/>
+    </svg>
+  </div>
+
+  <!--
+    Footer: links to every page in the project (the same list is on the
+    other pages). aria-current marks the page you're on: screen readers say
+    "current page", and landing.css shows it as plain bold text.
   -->
   <footer class="site-footer">
     <nav aria-label="All pages">
       <ul class="footer-links">
-        <li><a href="index.html" aria-current="page">MTG Card Binder</a></li>
+        <li><a href="index.html" aria-current="page">My Binders</a></li>
         <li><a href="cardsearch.html">MTG Card Finder</a></li>
       </ul>
     </nav>
+    <!-- "Sign out" at the far right. Hidden until someone is signed in. -->
+    <button id="footerSignOut" class="footer-signout" type="button" hidden>Sign out</button>
   </footer>
 
-  <!-- Shared code for saving and loading the binder's cards -->
+  <!-- Google's sign-in library (from Google's own website) -->
+  <script src="https://accounts.google.com/gsi/client" async></script>
+
+  <!-- Shared code for saving and loading the binders' cards -->
   <script src="binder-storage.js"></script>
 
-  <!-- All the page's code lives in javascript.js -->
-  <script src="javascript.js"></script>
+  <!-- Shared code for Google sign-in and saving binders to Google Drive -->
+  <script src="google-drive.js"></script>
+
+  <!-- All the page's own code lives in landing.js -->
+  <script src="landing.js"></script>
 </body>
 </html>

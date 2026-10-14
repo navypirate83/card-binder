@@ -1,9 +1,10 @@
 /* =========================================================================
-   javascript.js — all the code that makes index.html (the Card Binder)
-   work: the light/dark switch, building the pockets, turning pages, and
-   downloading / uploading the binder as a .JSON file.
-   It's loaded at the bottom of index.html, after the page's HTML exists,
-   and after binder-storage.js (which it uses to load saved cards).
+   javascript.js — all the code that makes binder.html (one card binder)
+   work: the light/dark switch, building the pockets, turning pages,
+   dragging cards, downloading / uploading the binder as a .JSON file, and
+   saving the binder to Google Drive.
+   It's loaded at the bottom of binder.html, after the page's HTML exists,
+   and after binder-storage.js and google-drive.js (which it uses).
    ========================================================================= */
 
 /* =====================================================================
@@ -19,6 +20,26 @@ const pageStatus  = document.getElementById('pageStatus');
 const downloadButton = document.getElementById('downloadJson');
 const uploadButton   = document.getElementById('uploadJson');
 const fileInput      = document.getElementById('jsonFileInput');
+const syncStatus     = document.getElementById('syncStatus');
+const syncConnect    = document.getElementById('syncConnect');
+
+/* =====================================================================
+   WHICH BINDER IS THIS?
+   ===================================================================== */
+
+// The binder this page shows comes from the address, e.g.
+// binder.html?binder=1AbC... (its Google Drive file id). Without one,
+// there's nothing to show, so go to the landing page to pick a binder.
+const BINDER_ID = currentBinderId();
+if (!BINDER_ID) location.replace('index.html');
+
+// Remember it as the binder opened last (the card search uses this when
+// it's opened on its own), and show its name in the tab title and footer.
+storageSet(LAST_BINDER_KEY, BINDER_ID || '');
+document.title = `${binderName(BINDER_ID)} – MTG Card Binder`;
+document.getElementById('thisBinderLink').textContent = binderName(BINDER_ID);
+document.getElementById('thisBinderLink').href = `binder.html?binder=${encodeURIComponent(BINDER_ID)}`;
+document.getElementById('cardSearchLink').href = `cardsearch.html?binder=${encodeURIComponent(BINDER_ID)}`;
 
 /* =====================================================================
    LIGHT / DARK MODE
@@ -45,15 +66,17 @@ themeSwitch.setAttribute('aria-checked', String(root.getAttribute('data-theme') 
    ===================================================================== */
 
 // TOTAL_PAGES, POCKETS_PER_PAGE, loadBinder() and pocketKey() come from
-// binder-storage.js (loaded just before this file in index.html), which
-// cardsearch.html shares, so both pages agree on the binder's size.
+// binder-storage.js (loaded before this file in binder.html), which the
+// other pages share, so they all agree on the binder's size.
 
-// The cards saved in the binder, e.g. { "3-5": { name, set, ... } }.
-const binderCards = loadBinder();
+// This binder's cards (this browser's working copy), e.g.
+// { "3-5": { name, set, ... } }. Google Drive is checked for a newer copy
+// once the page is showing (see SAVING TO GOOGLE DRIVE).
+const binderCards = loadBinder(BINDER_ID);
 
-// Build the link to cardsearch.html for one pocket. The page and pocket
-// numbers ride along in the link, so when "Add to binder" is clicked
-// over there, the card lands in this exact pocket.
+// Build the link to cardsearch.html for one pocket. The binder, page and
+// pocket ride along in the link, so when "Add to binder" is clicked over
+// there, the card lands in this exact pocket of this binder.
 // If the pocket already holds a card, the link also says which card to
 // open (the same set / number / face / language format as a shared link).
 function searchLinkFor(page, slot, card) {
@@ -64,6 +87,7 @@ function searchLinkFor(page, slot, card) {
     if (card.face === 1) params.set('face', 'back');
     if (card.lang) params.set('lang', card.lang);   // e.g. "ja" for Japanese
   }
+  params.set('binder', BINDER_ID);
   params.set('binderPage', page);
   params.set('binderSlot', slot);
   return `cardsearch.html?${params}`;
@@ -248,6 +272,24 @@ function spotOf(element) {
   };
 }
 
+// Wait for one half of a page turn to finish, but not forever. If the
+// browser isn't drawing the page (for example a frozen or hidden tab), its
+// animations stand still and would never finish, leaving the binder stuck
+// mid-turn with Previous / Next not working. So if it hasn't finished half
+// a second after it should have, jump it straight to its end.
+// The effects (shade, shadows) started alongside it end at the same time.
+async function finishedOrForced(animation, duration) {
+  const timeUp = new Promise((resolve) => setTimeout(resolve, duration + 500));
+  await Promise.race([animation.finished, timeUp]);
+  if (animation.playState !== 'finished') {
+    for (const other of binder.getAnimations({ subtree: true })) {
+      // Some animations never end (like the pulsing edge glow while a card
+      // is held at the edge) and can't be "finished": skip those.
+      try { other.finish(); } catch (e) { /* never-ending: leave it running */ }
+    }
+  }
+}
+
 // Run one page turn. The settings say:
 //  - cover:    the page element the turning page starts on top of
 //  - front:    page number on the front of the turning page (null = blank)
@@ -323,7 +365,7 @@ async function animateTurn({ cover, front, back, under, hinge, from, to, landing
     startShadow.animate([{ opacity: 1 }, { opacity: 0 }],
       { duration: half, easing: 'ease-in', fill: 'forwards' });
   }
-  await lift.finished;
+  await finishedOrForced(lift, half);
 
   // HALFWAY: the page is edge-on. Show the other side instead.
   frontFace.hidden = !startsOnBack;
@@ -344,7 +386,7 @@ async function animateTurn({ cover, front, back, under, hinge, from, to, landing
     endShadow.animate([{ opacity: 0 }, { opacity: 1 }],
       { duration: half, easing: 'ease-out', fill: 'forwards' });
   }
-  await settle.finished;
+  await finishedOrForced(settle, half);
 
   // Landed: remove the turning page and shadows, and show the final pages.
   flipper.remove();
@@ -663,6 +705,7 @@ function endDrag(x, y) {
       return;
     }
     refreshPocket(fromKey);             // the pocket goes back to a "+"
+    scheduleDriveSave();
     return;
   }
 
@@ -685,6 +728,7 @@ function endDrag(x, y) {
   }
   refreshPocket(fromKey);
   refreshPocket(toKey);
+  scheduleDriveSave();
 }
 
 // Clean up after a drag: remove the floating card, highlights and timers.
@@ -821,8 +865,9 @@ binder.addEventListener('contextmenu', (event) => {
 });
 
 // When the page opens, start on the page named in the address, if any.
-// cardsearch.html sends you back to "index.html?page=3" after adding a
-// card to page 3, so you see the new card right away. Otherwise page 1.
+// cardsearch.html sends you back to "binder.html?binder=...&page=3" after
+// adding a card to page 3, so you see the new card right away.
+// Otherwise page 1.
 const startPage = parseInt(new URLSearchParams(location.search).get('page'), 10);
 if (startPage >= 1 && startPage <= TOTAL_PAGES) currentPage = startPage;
 showPages();
@@ -833,32 +878,28 @@ showPages();
      {
        "app": "mtg-card-binder",
        "version": 1,
-       "exportedAt": "2026-10-13T18:30:00.000Z",
+       "name": "Binder 1",
+       "savedAt": "2026-10-13T18:30:00.000Z",
        "cards": { "1-1": { "name": "...", "set": "...", ... }, ... }
      }
-   where "1-1" means page 1, pocket 1. You can keep it as a backup, or
-   upload it on another computer or browser to bring your binder there.
+   where "1-1" means page 1, pocket 1. It's the same format as the binder's
+   file in Google Drive. Keep it as an extra backup, or upload it into any
+   binder to copy those cards in.
    ===================================================================== */
 
-// The name written into the file, so we can recognize our own files.
-const FILE_APP_NAME = 'mtg-card-binder';
-
-// DOWNLOAD: turn the saved cards into a .json file and save it.
+// DOWNLOAD: turn the binder into a .json file and save it.
 // The browser saves files from a link, so we make an invisible link to
 // the file's contents, "click" it, then clean up.
 downloadButton.addEventListener('click', () => {
-  const data = {
-    app: FILE_APP_NAME,
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    cards: loadBinder()
-  };
+  const data = binderFileData(BINDER_ID);   // from binder-storage.js
   // JSON.stringify writes the data as text; the "2" adds indenting so the
   // file is easy to read in a text editor.
   const file = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(file);
-  link.download = `card-binder-${new Date().toISOString().slice(0, 10)}.json`;  // e.g. card-binder-2026-10-13.json
+  // e.g. "Binder 1 2026-10-13.json" (characters not allowed in file names removed)
+  const safeName = binderName(BINDER_ID).replace(/[\\/:*?"<>|]/g, '');
+  link.download = `${safeName} ${new Date().toISOString().slice(0, 10)}.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -867,19 +908,6 @@ downloadButton.addEventListener('click', () => {
 
 // UPLOAD: the Upload button opens the (hidden) file picker.
 uploadButton.addEventListener('click', () => fileInput.click());
-
-// Check one card from an uploaded file. A file could come from anywhere,
-// so we only accept cards that have everything a pocket needs, with the
-// picture coming from a secure "https://" address.
-function isValidCard(card) {
-  return card !== null && typeof card === 'object' &&
-    typeof card.name === 'string' &&
-    typeof card.set === 'string' &&
-    typeof card.number === 'string' &&
-    typeof card.image === 'string' && card.image.startsWith('https://') &&
-    (card.face === 0 || card.face === 1) &&
-    (card.lang === undefined || typeof card.lang === 'string');
-}
 
 // Read a chosen file, check it, and put its cards into the binder.
 fileInput.addEventListener('change', async () => {
@@ -905,16 +933,8 @@ fileInput.addEventListener('change', async () => {
   }
 
   // Keep only the valid cards in pockets that exist (like "3-5").
-  const cards = {};
-  let skipped = 0;
-  for (const [key, card] of Object.entries(incoming)) {
-    const match = /^(\d+)-(\d+)$/.exec(key);
-    const page = match ? Number(match[1]) : 0;
-    const slot = match ? Number(match[2]) : 0;
-    const pocketExists = page >= 1 && page <= TOTAL_PAGES && slot >= 1 && slot <= POCKETS_PER_PAGE;
-    if (pocketExists && isValidCard(card)) cards[pocketKey(page, slot)] = card;
-    else skipped++;
-  }
+  // cleanCards() is in binder-storage.js.
+  const { cards, skipped } = cleanCards(incoming);
 
   const count = Object.keys(cards).length;
   if (count === 0) {
@@ -937,7 +957,100 @@ fileInput.addEventListener('change', async () => {
   if (skipped > 0) {
     alert(`Loaded ${count} cards. ${skipped} entr${skipped === 1 ? 'y was' : 'ies were'} skipped because ${skipped === 1 ? 'it wasn\'t' : 'they weren\'t'} valid.`);
   }
-  // Reload the page so every pocket is rebuilt from the new cards.
-  // Keep the same page open by putting it in the address.
-  location.href = `index.html?page=${currentPage}`;
+  // Reload the page so every pocket is rebuilt from the new cards (it then
+  // saves them to Google Drive). Keep the same page open in the address.
+  location.href = `binder.html?binder=${encodeURIComponent(BINDER_ID)}&page=${currentPage}`;
 });
+
+/* =====================================================================
+   SAVING TO GOOGLE DRIVE
+   The binder's real home is its file in the user's Google Drive (see
+   google-drive.js). This page works on the browser's copy and keeps Drive
+   up to date:
+   - When the page opens, it fetches the binder from Drive (in case it was
+     changed on another computer), or sends this browser's changes to
+     Drive if there are some that haven't been saved yet.
+   - After each change (moving or removing a card), it saves to Drive a
+     moment later. Waiting a moment means several quick changes are sent
+     together in one save.
+   - If the Google sign-in has run out (it lasts about an hour), changes
+     are kept in this browser and a "Connect Drive" button appears. Clicking
+     it signs in again and saves everything.
+   ===================================================================== */
+
+// How long to wait after a change before saving to Drive (milliseconds).
+const DRIVE_SAVE_DELAY_MS = 1200;
+
+// The waiting timer for the next save to Drive.
+let driveSaveTimer = null;
+
+// Show the save status in the top bar. "state" picks the look:
+// 'saved', 'saving', 'error', or 'signed-out' (which shows the Connect button).
+function setSyncStatus(state, text) {
+  syncStatus.textContent = text;
+  syncStatus.dataset.state = state;
+  syncConnect.hidden = state !== 'signed-out';
+}
+
+// Put new cards into the binder (after fetching them from Drive) and
+// redraw every pocket so the page matches.
+function replaceAllCards(cards) {
+  for (const key of Object.keys(binderCards)) delete binderCards[key];
+  Object.assign(binderCards, cards);
+  for (let page = 1; page <= TOTAL_PAGES; page++) {
+    for (let slot = 1; slot <= POCKETS_PER_PAGE; slot++) refreshPocket(pocketKey(page, slot));
+  }
+}
+
+// Bring this binder up to date with Google Drive now.
+async function syncWithDrive() {
+  clearTimeout(driveSaveTimer);
+  if (!isSignedIn()) {
+    setSyncStatus('signed-out', binderDirtyStamp(BINDER_ID) ? 'Not saved to Drive yet' : '');
+    return;
+  }
+  setSyncStatus('saving', 'Saving…');
+  const before = JSON.stringify(binderCards);
+  try {
+    const cards = await syncBinder(BINDER_ID);   // google-drive.js
+    // Drive had a different version (changed elsewhere): show that one.
+    // (Skipped while a card is being dragged, so it doesn't vanish mid-drag;
+    // the next save brings everything into line.)
+    if (!drag && JSON.stringify(cards) !== before) replaceAllCards(cards);
+    setSyncStatus('saved', '✓ Saved to Drive');
+  } catch (err) {
+    if (err.signedOut) setSyncStatus('signed-out', 'Not saved to Drive yet');
+    else setSyncStatus('error', 'Couldn\'t reach Google Drive');
+  }
+}
+
+// After a change: save to Drive in a moment (restarting the wait if more
+// changes come in quickly).
+function scheduleDriveSave() {
+  clearTimeout(driveSaveTimer);
+  if (!isSignedIn()) {
+    setSyncStatus('signed-out', 'Not saved to Drive yet');
+    return;
+  }
+  setSyncStatus('saving', 'Saving…');
+  driveSaveTimer = setTimeout(syncWithDrive, DRIVE_SAVE_DELAY_MS);
+}
+
+// "Connect Drive": sign in to Google again, then save.
+syncConnect.addEventListener('click', async () => {
+  try {
+    await signInWithGoogle();   // google-drive.js
+    syncWithDrive();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+// When the page opens: get Google's sign-in ready (for the Connect button)
+// and bring the binder up to date with Drive.
+initGoogleSignIn().catch(() => { /* the Connect button explains if needed */ });
+if (BINDER_ID) syncWithDrive();
+
+// The "Sign out" link at the bottom right (google-drive.js saves any
+// unsaved changes first). Afterwards, go to the sign-in screen.
+setUpFooterSignOut(() => { location.href = 'index.html'; });

@@ -148,21 +148,33 @@
   </main>
 
   <!--
-    Footer: links to every page in the project (the same list is on
-    index.html). aria-current marks the page you're on: screen readers
+    Footer: links to every page in the project (the same list is on the
+    other pages). aria-current marks the page you're on: screen readers
     say "current page", and cardsearch.css shows it as plain bold text.
+    The middle link goes back to the binder you came from; cardsearch.js
+    fills it in, and it stays hidden if no binder has been opened yet.
   -->
   <footer class="site-footer">
     <nav aria-label="All pages">
       <ul class="footer-links">
-        <li><a href="index.html">MTG Card Binder</a></li>
+        <li><a href="index.html">My Binders</a></li>
+        <li id="backToBinderItem" hidden><a id="backToBinderLink" href="binder.html">Binder</a></li>
         <li><a href="cardsearch.html" aria-current="page">MTG Card Finder</a></li>
       </ul>
     </nav>
+    <!-- "Sign out" at the far right. Hidden until someone is signed in. -->
+    <button id="footerSignOut" class="footer-signout" type="button" hidden>Sign out</button>
   </footer>
 
-  <!-- Shared code for saving and loading the binder's cards (also used by index.html) -->
+  <!-- Google's sign-in library (from Google's own website), used here only
+       so "Sign out" can tell Google to cancel the sign-in -->
+  <script src="https://accounts.google.com/gsi/client" async></script>
+
+  <!-- Shared code for saving and loading the binders' cards (also used by the binder pages) -->
   <script src="binder-storage.js"></script>
+
+  <!-- Shared code for Google sign-in and Google Drive (here: the Sign out link) -->
+  <script src="google-drive.js"></script>
 
   <!-- All the page's code lives in cardsearch.js -->
   <script src="cardsearch.js"></script>

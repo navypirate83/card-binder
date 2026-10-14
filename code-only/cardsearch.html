@@ -115,13 +115,19 @@
   <footer class="site-footer">
     <nav aria-label="All pages">
       <ul class="footer-links">
-        <li><a href="index.html">MTG Card Binder</a></li>
+        <li><a href="index.html">My Binders</a></li>
+        <li id="backToBinderItem" hidden><a id="backToBinderLink" href="binder.html">Binder</a></li>
         <li><a href="cardsearch.html" aria-current="page">MTG Card Finder</a></li>
       </ul>
     </nav>
+    <button id="footerSignOut" class="footer-signout" type="button" hidden>Sign out</button>
   </footer>
 
+  <script src="https://accounts.google.com/gsi/client" async></script>
+
   <script src="binder-storage.js"></script>
+
+  <script src="google-drive.js"></script>
 
   <script src="cardsearch.js"></script>
 </body>

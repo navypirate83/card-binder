@@ -664,15 +664,34 @@ main {
 
 /* =====================================================================
    FOOTER: LINKS TO EVERY PAGE
-   (the same rules are in style.css and cardsearch.css)
+   (the same rules are in style.css and landing.css)
    ===================================================================== */
 
-/* The strip at the very bottom of the page, with a thin line above it */
+/*
+  The strip of links pinned to the bottom of the window, with a thin line
+  above it. "position: fixed" keeps it at the window's bottom edge all the
+  time, even while scrolling down this long page; the solid background
+  hides the page passing underneath it, and z-index 50 keeps it on top.
+  "line-height: 20px" fixes its height at 43px (1px line + 10px + 20px
+  text + 12px), which is the body's bottom padding (below).
+*/
 .site-footer {
-  padding: 18px 16px 28px;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  padding: 10px 16px 12px;
   border-top: 1px solid var(--border);
+  background: var(--bg);
   font-size: 0.9rem;
+  line-height: 20px;
+  transition: background-color 0.25s;
 }
+
+/* Leave room at the bottom of the page for the pinned footer (43px), so
+   the end of the page (the Notes and Rules) can scroll up clear of it */
+body { padding-bottom: 43px; }
 
 /*
   The list of page links: no bullets, centered, side by side.
@@ -701,4 +720,70 @@ main {
   color: var(--text);
   text-decoration: none;
   cursor: default;
+}
+/* =====================================================================
+   FOOTER LAYOUT AND THE "SIGN OUT" LINK
+   (the same rules are in style.css, landing.css and cardsearch.css)
+   ===================================================================== */
+
+/*
+  The footer is a grid with three columns. The page links sit in the
+  middle one, and "Sign out" sits in the right one, pushed to the far
+  right edge. The two outer columns ("1fr") are always equal in width,
+  which keeps the page links exactly centered on the page.
+*/
+.site-footer {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  column-gap: 16px;
+}
+.site-footer nav { grid-column: 2; }
+
+/*
+  "Sign out": a button (it does something) styled like the other footer
+  links. "font: inherit" also copies the footer's 20px line height, so the
+  footer stays exactly 43px tall.
+*/
+.footer-signout {
+  grid-column: 3;
+  justify-self: end;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.footer-signout:hover { text-decoration: underline; }
+.footer-signout:disabled {
+  opacity: 0.6;
+  cursor: progress;
+  text-decoration: none;
+}
+
+/*
+  Phones: there isn't room for the links to stay centered with "Sign out"
+  beside them, so use two columns instead: the links on the left and
+  "Sign out" on the far right. The text is a little smaller and the gaps a
+  little tighter, so everything fits on one line (the footer must stay one
+  line, 43px tall, or it would cover the bottom of the page).
+*/
+@media (max-width: 640px) {
+  .site-footer {
+    grid-template-columns: 1fr auto;
+    column-gap: 12px;
+    font-size: 0.85rem;
+  }
+  .site-footer nav { grid-column: 1; }
+  .footer-links { justify-content: flex-start; gap: 8px 12px; }
+  .footer-signout { grid-column: 2; }
+}
+/* The smallest phones (360px wide or less): shrink the footer text one more
+   step so the links and "Sign out" still fit on one line */
+@media (max-width: 360px) {
+  .site-footer { font-size: 0.78rem; column-gap: 8px; }
+  .footer-links { gap: 8px 10px; }
 }

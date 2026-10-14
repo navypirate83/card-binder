@@ -840,6 +840,15 @@ shareButton.addEventListener('click', async () => {
   }
 });
 
+const targetBinderId = currentBinderId() || storageGet(LAST_BINDER_KEY) || null;
+
+if (targetBinderId) {
+  const backLink = document.getElementById('backToBinderLink');
+  backLink.textContent = binderName(targetBinderId);
+  backLink.href = `binder.html?binder=${encodeURIComponent(targetBinderId)}`;
+  document.getElementById('backToBinderItem').hidden = false;
+}
+
 const binderTarget = (() => {
   const params = new URLSearchParams(location.search);
   const page = parseInt(params.get('binderPage'), 10);
@@ -857,8 +866,12 @@ function binderImageFor(print, face) {
 binderButton.addEventListener('click', () => {
   const print = state.currentPrint;
   if (!print) return;
+  if (!targetBinderId) {
+    setHint('Open one of your binders first (My Binders, at the bottom of the page).', true);
+    return;
+  }
 
-  const cards = loadBinder();
+  const cards = loadBinder(targetBinderId);
   const pocket = binderTarget || firstEmptyPocket(cards);
   if (!pocket) {
     setHint('Your binder is full. Click a card in the binder to replace it.', true);
@@ -876,11 +889,11 @@ binderButton.addEventListener('click', () => {
     image: binderImageFor(shown, face)
   };
 
-  if (!saveBinder(cards)) {
+  if (!saveBinder(cards, targetBinderId)) {
     setHint('Your browser blocked saving, so the card could not be added.', true);
     return;
   }
-  location.href = `index.html?page=${pocket.page}`;
+  location.href = `binder.html?binder=${encodeURIComponent(targetBinderId)}&page=${pocket.page}`;
 });
 
 function openSharedLinkIfAny() {
@@ -902,3 +915,5 @@ const setIconsReady = loadSetIcons();
 loadCardNames();
 
 openSharedLinkIfAny();
+
+setUpFooterSignOut(() => { location.href = 'index.html'; });

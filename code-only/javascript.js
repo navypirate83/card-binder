@@ -7,6 +7,17 @@ const pageStatus  = document.getElementById('pageStatus');
 const downloadButton = document.getElementById('downloadJson');
 const uploadButton   = document.getElementById('uploadJson');
 const fileInput      = document.getElementById('jsonFileInput');
+const syncStatus     = document.getElementById('syncStatus');
+const syncConnect    = document.getElementById('syncConnect');
+
+const BINDER_ID = currentBinderId();
+if (!BINDER_ID) location.replace('index.html');
+
+storageSet(LAST_BINDER_KEY, BINDER_ID || '');
+document.title = `${binderName(BINDER_ID)} – MTG Card Binder`;
+document.getElementById('thisBinderLink').textContent = binderName(BINDER_ID);
+document.getElementById('thisBinderLink').href = `binder.html?binder=${encodeURIComponent(BINDER_ID)}`;
+document.getElementById('cardSearchLink').href = `cardsearch.html?binder=${encodeURIComponent(BINDER_ID)}`;
 
 function setTheme(theme) {
   root.setAttribute('data-theme', theme);
@@ -20,7 +31,7 @@ themeSwitch.addEventListener('click', () => {
 
 themeSwitch.setAttribute('aria-checked', String(root.getAttribute('data-theme') === 'dark'));
 
-const binderCards = loadBinder();
+const binderCards = loadBinder(BINDER_ID);
 
 function searchLinkFor(page, slot, card) {
   const params = new URLSearchParams();
@@ -30,6 +41,7 @@ function searchLinkFor(page, slot, card) {
     if (card.face === 1) params.set('face', 'back');
     if (card.lang) params.set('lang', card.lang);
   }
+  params.set('binder', BINDER_ID);
   params.set('binderPage', page);
   params.set('binderSlot', slot);
   return `cardsearch.html?${params}`;
@@ -166,6 +178,16 @@ function spotOf(element) {
   };
 }
 
+async function finishedOrForced(animation, duration) {
+  const timeUp = new Promise((resolve) => setTimeout(resolve, duration + 500));
+  await Promise.race([animation.finished, timeUp]);
+  if (animation.playState !== 'finished') {
+    for (const other of binder.getAnimations({ subtree: true })) {
+      try { other.finish(); } catch (e) {  }
+    }
+  }
+}
+
 async function animateTurn({ cover, front, back, under, hinge, from, to, landing, fade, done }) {
   const spot = spotOf(cover);
   const otherSide = hinge === 'left' ? 'right' : 'left';
@@ -208,7 +230,7 @@ async function animateTurn({ cover, front, back, under, hinge, from, to, landing
     startShadow.animate([{ opacity: 1 }, { opacity: 0 }],
       { duration: half, easing: 'ease-in', fill: 'forwards' });
   }
-  await lift.finished;
+  await finishedOrForced(lift, half);
 
   frontFace.hidden = !startsOnBack;
   backFace.hidden = startsOnBack;
@@ -223,7 +245,7 @@ async function animateTurn({ cover, front, back, under, hinge, from, to, landing
     endShadow.animate([{ opacity: 0 }, { opacity: 1 }],
       { duration: half, easing: 'ease-out', fill: 'forwards' });
   }
-  await settle.finished;
+  await finishedOrForced(settle, half);
 
   flipper.remove();
   if (startShadow) startShadow.remove();
@@ -443,6 +465,7 @@ function endDrag(x, y) {
       return;
     }
     refreshPocket(fromKey);
+    scheduleDriveSave();
     return;
   }
 
@@ -463,6 +486,7 @@ function endDrag(x, y) {
   }
   refreshPocket(fromKey);
   refreshPocket(toKey);
+  scheduleDriveSave();
 }
 
 function finishDrag() {
@@ -573,42 +597,29 @@ const startPage = parseInt(new URLSearchParams(location.search).get('page'), 10)
 if (startPage >= 1 && startPage <= TOTAL_PAGES) currentPage = startPage;
 showPages();
 
-const FILE_APP_NAME = 'mtg-card-binder';
-
 downloadButton.addEventListener('click', () => {
-  const data = {
-    app: FILE_APP_NAME,
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    cards: loadBinder()
-  };
+  const data = binderFileData(BINDER_ID);
   const file = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(file);
-  link.download = `card-binder-${new Date().toISOString().slice(0, 10)}.json`;
+  const safeName = binderName(BINDER_ID).replace(/[\\/:*?"<>|]/g, '');
+  link.download = `${safeName} ${new Date().toISOString().slice(0, 10)}.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(link.href);
+  URL.revokeObjectURL(link.href);   // free the memory the file was using
 });
 
+// UPLOAD: the Upload button opens the (hidden) file picker.
 uploadButton.addEventListener('click', () => fileInput.click());
 
-function isValidCard(card) {
-  return card !== null && typeof card === 'object' &&
-    typeof card.name === 'string' &&
-    typeof card.set === 'string' &&
-    typeof card.number === 'string' &&
-    typeof card.image === 'string' && card.image.startsWith('https://') &&
-    (card.face === 0 || card.face === 1) &&
-    (card.lang === undefined || typeof card.lang === 'string');
-}
-
+// Read a chosen file, check it, and put its cards into the binder.
 fileInput.addEventListener('change', async () => {
   const chosen = fileInput.files[0];
-  fileInput.value = '';
-  if (!chosen) return;
+  fileInput.value = '';             // so picking the same file again still works
+  if (!chosen) return;              // the picker was closed without a file
 
+  // Read the file's text and turn it back into data.
   let data;
   try {
     data = JSON.parse(await chosen.text());
@@ -617,22 +628,17 @@ fileInput.addEventListener('change', async () => {
     return;
   }
 
+  // Accept our own download format ({ cards: {...} }) or just the cards
+  // by themselves ({ "1-1": {...}, ... }).
   const incoming = data && typeof data === 'object' && data.cards ? data.cards : data;
   if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
     alert('That file doesn\'t contain any binder cards.');
     return;
   }
 
-  const cards = {};
-  let skipped = 0;
-  for (const [key, card] of Object.entries(incoming)) {
-    const match = /^(\d+)-(\d+)$/.exec(key);
-    const page = match ? Number(match[1]) : 0;
-    const slot = match ? Number(match[2]) : 0;
-    const pocketExists = page >= 1 && page <= TOTAL_PAGES && slot >= 1 && slot <= POCKETS_PER_PAGE;
-    if (pocketExists && isValidCard(card)) cards[pocketKey(page, slot)] = card;
-    else skipped++;
-  }
+  // Keep only the valid cards in pockets that exist (like "3-5").
+  // cleanCards() is in binder-storage.js.
+  const { cards, skipped } = cleanCards(incoming);
 
   const count = Object.keys(cards).length;
   if (count === 0) {
@@ -640,6 +646,7 @@ fileInput.addEventListener('change', async () => {
     return;
   }
 
+  // Uploading REPLACES the binder, so check first if it already has cards.
   const current = Object.keys(loadBinder()).length;
   if (current > 0 && !confirm(
     `Replace the ${current} card${current === 1 ? '' : 's'} in your binder ` +
@@ -654,5 +661,100 @@ fileInput.addEventListener('change', async () => {
   if (skipped > 0) {
     alert(`Loaded ${count} cards. ${skipped} entr${skipped === 1 ? 'y was' : 'ies were'} skipped because ${skipped === 1 ? 'it wasn\'t' : 'they weren\'t'} valid.`);
   }
-  location.href = `index.html?page=${currentPage}`;
+  // Reload the page so every pocket is rebuilt from the new cards (it then
+  // saves them to Google Drive). Keep the same page open in the address.
+  location.href = `binder.html?binder=${encodeURIComponent(BINDER_ID)}&page=${currentPage}`;
 });
+
+/* =====================================================================
+   SAVING TO GOOGLE DRIVE
+   The binder's real home is its file in the user's Google Drive (see
+   google-drive.js). This page works on the browser's copy and keeps Drive
+   up to date:
+   - When the page opens, it fetches the binder from Drive (in case it was
+     changed on another computer), or sends this browser's changes to
+     Drive if there are some that haven't been saved yet.
+   - After each change (moving or removing a card), it saves to Drive a
+     moment later. Waiting a moment means several quick changes are sent
+     together in one save.
+   - If the Google sign-in has run out (it lasts about an hour), changes
+     are kept in this browser and a "Connect Drive" button appears. Clicking
+     it signs in again and saves everything.
+   ===================================================================== */
+
+// How long to wait after a change before saving to Drive (milliseconds).
+const DRIVE_SAVE_DELAY_MS = 1200;
+
+// The waiting timer for the next save to Drive.
+let driveSaveTimer = null;
+
+// Show the save status in the top bar. "state" picks the look:
+// 'saved', 'saving', 'error', or 'signed-out' (which shows the Connect button).
+function setSyncStatus(state, text) {
+  syncStatus.textContent = text;
+  syncStatus.dataset.state = state;
+  syncConnect.hidden = state !== 'signed-out';
+}
+
+// Put new cards into the binder (after fetching them from Drive) and
+// redraw every pocket so the page matches.
+function replaceAllCards(cards) {
+  for (const key of Object.keys(binderCards)) delete binderCards[key];
+  Object.assign(binderCards, cards);
+  for (let page = 1; page <= TOTAL_PAGES; page++) {
+    for (let slot = 1; slot <= POCKETS_PER_PAGE; slot++) refreshPocket(pocketKey(page, slot));
+  }
+}
+
+// Bring this binder up to date with Google Drive now.
+async function syncWithDrive() {
+  clearTimeout(driveSaveTimer);
+  if (!isSignedIn()) {
+    setSyncStatus('signed-out', binderDirtyStamp(BINDER_ID) ? 'Not saved to Drive yet' : '');
+    return;
+  }
+  setSyncStatus('saving', 'Saving…');
+  const before = JSON.stringify(binderCards);
+  try {
+    const cards = await syncBinder(BINDER_ID);   // google-drive.js
+    // Drive had a different version (changed elsewhere): show that one.
+    // (Skipped while a card is being dragged, so it doesn't vanish mid-drag;
+    // the next save brings everything into line.)
+    if (!drag && JSON.stringify(cards) !== before) replaceAllCards(cards);
+    setSyncStatus('saved', '✓ Saved to Drive');
+  } catch (err) {
+    if (err.signedOut) setSyncStatus('signed-out', 'Not saved to Drive yet');
+    else setSyncStatus('error', 'Couldn\'t reach Google Drive');
+  }
+}
+
+// After a change: save to Drive in a moment (restarting the wait if more
+// changes come in quickly).
+function scheduleDriveSave() {
+  clearTimeout(driveSaveTimer);
+  if (!isSignedIn()) {
+    setSyncStatus('signed-out', 'Not saved to Drive yet');
+    return;
+  }
+  setSyncStatus('saving', 'Saving…');
+  driveSaveTimer = setTimeout(syncWithDrive, DRIVE_SAVE_DELAY_MS);
+}
+
+// "Connect Drive": sign in to Google again, then save.
+syncConnect.addEventListener('click', async () => {
+  try {
+    await signInWithGoogle();   // google-drive.js
+    syncWithDrive();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+// When the page opens: get Google's sign-in ready (for the Connect button)
+// and bring the binder up to date with Drive.
+initGoogleSignIn().catch(() => { /* the Connect button explains if needed */ });
+if (BINDER_ID) syncWithDrive();
+
+// The "Sign out" link at the bottom right (google-drive.js saves any
+// unsaved changes first). Afterwards, go to the sign-in screen.
+setUpFooterSignOut(() => { location.href = 'index.html'; });
