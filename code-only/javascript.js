@@ -300,7 +300,7 @@ binder.addEventListener('touchend', (event) => {
   const moveX = event.changedTouches[0].clientX - touchStartX;
   const moveY = event.changedTouches[0].clientY - touchStartY;
   if (Math.abs(moveX) < SWIPE_DISTANCE || Math.abs(moveX) < Math.abs(moveY)) return;
-  turnPage(moveX < 0 ? -1 : 1);
+  turnPage(moveX < 0 ? 1 : -1);
 });
 
 const DRAG_START_DISTANCE = 6;

@@ -442,8 +442,9 @@ binder.addEventListener('touchstart', (event) => {
 }, { passive: true });
 
 // When the finger lifts, see how far it moved.
-//  - Swipe LEFT  (finger moved right-to-left) = previous page
-//  - Swipe RIGHT (finger moved left-to-right) = next page
+//  - Swipe LEFT  (finger moved right-to-left) = next page, like turning
+//    a page in a book
+//  - Swipe RIGHT (finger moved left-to-right) = previous page
 // A swipe only counts if it went far enough sideways and more sideways
 // than up/down, so normal scrolling up and down doesn't turn the page.
 binder.addEventListener('touchend', (event) => {
@@ -452,7 +453,7 @@ binder.addEventListener('touchend', (event) => {
   const moveX = event.changedTouches[0].clientX - touchStartX;
   const moveY = event.changedTouches[0].clientY - touchStartY;
   if (Math.abs(moveX) < SWIPE_DISTANCE || Math.abs(moveX) < Math.abs(moveY)) return;
-  turnPage(moveX < 0 ? -1 : 1);
+  turnPage(moveX < 0 ? 1 : -1);   // moved left (negative) = forward
 });
 
 /* =====================================================================
