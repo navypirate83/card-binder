@@ -47,6 +47,8 @@ function fillPocket(pocket, page, slot) {
     img.src = card.image;
     img.alt = '';
     img.loading = 'eager';
+    img.draggable = false;
+    link.draggable = false;
     link.appendChild(img);
   } else {
     link.className = 'pocket-add';
@@ -294,10 +296,277 @@ binder.addEventListener('touchstart', (event) => {
 
 binder.addEventListener('touchend', (event) => {
   if (!PHONE_QUERY.matches) return;
+  if (drag) return;
   const moveX = event.changedTouches[0].clientX - touchStartX;
   const moveY = event.changedTouches[0].clientY - touchStartY;
   if (Math.abs(moveX) < SWIPE_DISTANCE || Math.abs(moveX) < Math.abs(moveY)) return;
   turnPage(moveX < 0 ? -1 : 1);
+});
+
+const DRAG_START_DISTANCE = 6;
+
+const HOLD_TO_DRAG_MS = 350;
+
+const HOLD_WOBBLE = 10;
+
+const EDGE_ZONE = 18;
+
+const EDGE_WAIT_MS = 550;
+
+const trash = document.getElementById('binderTrash');
+const TRASH_REACH = 44;
+
+let drag = null;
+
+let pendingMouse = null;
+
+let holdTimer = null;
+let holdStart = null;
+
+let edgeTimer = null;
+
+let lastDragEnd = 0;
+
+function pocketElement(key) {
+  const [page, slot] = key.split('-');
+  return binder.querySelector(`.pocket[data-page="${page}"][data-slot="${slot}"]`);
+}
+
+function keyOf(pocket) {
+  return pocketKey(pocket.dataset.page, pocket.dataset.slot);
+}
+
+function refreshPocket(key) {
+  const pocket = pocketElement(key);
+  if (!pocket) return;
+  pocket.replaceChildren();
+  fillPocket(pocket, Number(pocket.dataset.page), Number(pocket.dataset.slot));
+}
+
+function pocketAt(x, y) {
+  const element = document.elementFromPoint(x, y);
+  const pocket = element && element.closest('.pocket');
+  return pocket && !pocket.closest('.flipper') && binder.contains(pocket) ? pocket : null;
+}
+
+function beginDrag(pocket, x, y) {
+  const card = binderCards[keyOf(pocket)];
+  if (!card) return;
+
+  const box = pocket.getBoundingClientRect();
+  const ghost = document.createElement('div');
+  ghost.className = 'drag-ghost';
+  ghost.style.width = `${box.width}px`;
+  ghost.style.height = `${box.height}px`;
+  const img = document.createElement('img');
+  img.src = card.image;
+  img.alt = '';
+  ghost.appendChild(img);
+  document.body.appendChild(ghost);
+
+  drag = {
+    fromKey: keyOf(pocket),
+    ghost,
+    grabX: x - box.left,
+    grabY: y - box.top,
+    target: null,
+    overTrash: false,
+    edge: 0
+  };
+
+  pocket.classList.add('drag-source');
+  document.body.classList.add('dragging');
+  moveDrag(x, y);
+}
+
+function moveDrag(x, y) {
+  if (!drag) return;
+  drag.ghost.style.transform =
+    `translate(${x - drag.grabX}px, ${y - drag.grabY}px) rotate(3deg) scale(1.06)`;
+
+  drag.overTrash = isOverTrash(x, y);
+  trash.classList.toggle('active', drag.overTrash);
+  drag.ghost.classList.toggle('over-trash', drag.overTrash);
+
+  const target = drag.overTrash ? null : pocketAt(x, y);
+  if (target !== drag.target) {
+    if (drag.target) drag.target.classList.remove('drop-target');
+    if (target && keyOf(target) !== drag.fromKey) target.classList.add('drop-target');
+    drag.target = target;
+  }
+
+  const box = binder.getBoundingClientRect();
+  const nearHeight = y > box.top - 40 && y < box.bottom + 40;
+  let edge = 0;
+  if (nearHeight && x < box.left + EDGE_ZONE) edge = -1;
+  if (nearHeight && x > box.right - EDGE_ZONE) edge = 1;
+  setEdge(edge);
+}
+
+function setEdge(edge) {
+  if (edge === drag.edge) return;
+  drag.edge = edge;
+  binder.classList.toggle('edge-left', edge === -1);
+  binder.classList.toggle('edge-right', edge === 1);
+  clearTimeout(edgeTimer);
+  if (edge !== 0) edgeTimer = setTimeout(turnFromEdge, EDGE_WAIT_MS);
+}
+
+function turnFromEdge() {
+  if (!drag || drag.edge === 0) return;
+  turnPage(drag.edge);
+  edgeTimer = setTimeout(turnFromEdge, TURN_MS + EDGE_WAIT_MS);
+}
+
+function isOverTrash(x, y) {
+  const box = trash.getBoundingClientRect();
+  if (box.width === 0) return false;
+  const centerX = box.left + box.width / 2;
+  const centerY = box.top + box.height / 2;
+  return Math.hypot(x - centerX, y - centerY) <= TRASH_REACH;
+}
+
+function endDrag(x, y) {
+  if (!drag) return;
+  const removing = isOverTrash(x, y);
+  const target = removing ? null : pocketAt(x, y);
+  const fromKey = drag.fromKey;
+  const toKey = target ? keyOf(target) : null;
+  finishDrag();
+
+  if (removing) {
+    const removed = binderCards[fromKey];
+    delete binderCards[fromKey];
+    if (!saveBinder(binderCards)) {
+      binderCards[fromKey] = removed;
+      alert('Your browser blocked saving, so the card could not be removed.');
+      return;
+    }
+    refreshPocket(fromKey);
+    return;
+  }
+
+  if (!toKey || toKey === fromKey) return;
+
+  const moving = binderCards[fromKey];
+  const swapped = binderCards[toKey];
+  binderCards[toKey] = moving;
+  if (swapped) binderCards[fromKey] = swapped;
+  else delete binderCards[fromKey];
+
+  if (!saveBinder(binderCards)) {
+    binderCards[fromKey] = moving;
+    if (swapped) binderCards[toKey] = swapped;
+    else delete binderCards[toKey];
+    alert('Your browser blocked saving, so the card could not be moved.');
+    return;
+  }
+  refreshPocket(fromKey);
+  refreshPocket(toKey);
+}
+
+function finishDrag() {
+  if (!drag) return;
+  drag.ghost.remove();
+  if (drag.target) drag.target.classList.remove('drop-target');
+  trash.classList.remove('active');
+  const source = pocketElement(drag.fromKey);
+  if (source) source.classList.remove('drag-source');
+  clearTimeout(edgeTimer);
+  binder.classList.remove('edge-left', 'edge-right');
+  document.body.classList.remove('dragging');
+  drag = null;
+  lastDragEnd = Date.now();
+}
+
+binder.addEventListener('pointerdown', (event) => {
+  if (event.pointerType === 'touch' || event.button !== 0) return;
+  const pocket = event.target.closest('.pocket');
+  if (!pocket || !binderCards[keyOf(pocket)] || turning) return;
+  event.preventDefault();
+  pendingMouse = { pocket, x: event.clientX, y: event.clientY };
+});
+
+window.addEventListener('pointermove', (event) => {
+  if (event.pointerType === 'touch') return;
+  if (pendingMouse) {
+    const moved = Math.hypot(event.clientX - pendingMouse.x, event.clientY - pendingMouse.y);
+    if (moved >= DRAG_START_DISTANCE) {
+      beginDrag(pendingMouse.pocket, pendingMouse.x, pendingMouse.y);
+      pendingMouse = null;
+    }
+  }
+  moveDrag(event.clientX, event.clientY);
+});
+
+window.addEventListener('pointerup', (event) => {
+  if (event.pointerType === 'touch') return;
+  pendingMouse = null;
+  endDrag(event.clientX, event.clientY);
+});
+
+binder.addEventListener('touchstart', (event) => {
+  if (event.touches.length !== 1 || turning) return;
+  const pocket = event.target.closest('.pocket');
+  if (!pocket || !binderCards[keyOf(pocket)]) return;
+  const touch = event.touches[0];
+  holdStart = { x: touch.clientX, y: touch.clientY };
+  clearTimeout(holdTimer);
+  holdTimer = setTimeout(() => {
+    holdTimer = null;
+    beginDrag(pocket, holdStart.x, holdStart.y);
+    if (navigator.vibrate) navigator.vibrate(15);
+  }, HOLD_TO_DRAG_MS);
+}, { passive: true });
+
+binder.addEventListener('touchmove', (event) => {
+  const touch = event.touches[0];
+  if (holdTimer && Math.hypot(touch.clientX - holdStart.x, touch.clientY - holdStart.y) > HOLD_WOBBLE) {
+    clearTimeout(holdTimer);
+    holdTimer = null;
+  }
+  if (drag) {
+    event.preventDefault();
+    moveDrag(touch.clientX, touch.clientY);
+  }
+}, { passive: false });
+
+binder.addEventListener('touchend', (event) => {
+  clearTimeout(holdTimer);
+  holdTimer = null;
+  if (drag) {
+    const touch = event.changedTouches[0];
+    endDrag(touch.clientX, touch.clientY);
+  }
+});
+
+binder.addEventListener('touchcancel', () => {
+  clearTimeout(holdTimer);
+  holdTimer = null;
+  finishDrag();
+});
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    pendingMouse = null;
+    finishDrag();
+  }
+});
+
+window.addEventListener('blur', () => {
+  pendingMouse = null;
+  finishDrag();
+});
+
+binder.addEventListener('click', (event) => {
+  if (drag || Date.now() - lastDragEnd < 400) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}, true);
+
+binder.addEventListener('contextmenu', (event) => {
+  if (event.target.closest('.pocket-card')) event.preventDefault();
 });
 
 const startPage = parseInt(new URLSearchParams(location.search).get('page'), 10);

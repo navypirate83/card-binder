@@ -88,6 +88,10 @@ function fillPocket(pocket, page, slot) {
     // (We don't use loading="lazy": some phone browsers never load lazy
     // pictures that start on a hidden page, leaving those pockets blank.)
     img.loading = 'eager';
+    // Turn off the browser's own "drag a picture or link" feature: we
+    // handle dragging cards between pockets ourselves (see DRAGGING CARDS).
+    img.draggable = false;
+    link.draggable = false;
     link.appendChild(img);
   } else {
     link.className = 'pocket-add';
@@ -444,10 +448,375 @@ binder.addEventListener('touchstart', (event) => {
 // than up/down, so normal scrolling up and down doesn't turn the page.
 binder.addEventListener('touchend', (event) => {
   if (!PHONE_QUERY.matches) return;   // swiping is for the phone layout only
+  if (drag) return;                   // the finger was dragging a card, not swiping
   const moveX = event.changedTouches[0].clientX - touchStartX;
   const moveY = event.changedTouches[0].clientY - touchStartY;
   if (Math.abs(moveX) < SWIPE_DISTANCE || Math.abs(moveX) < Math.abs(moveY)) return;
   turnPage(moveX < 0 ? -1 : 1);
+});
+
+/* =====================================================================
+   DRAGGING CARDS BETWEEN POCKETS
+   Pick up a card and drop it on another pocket to move it there. Drop it
+   on a pocket that already has a card and the two cards swap places.
+   Hold a dragged card at the left or right edge of the binder to turn
+   the page, so you can move a card to a different page.
+   While dragging, a red circle with an X appears in the middle of the
+   binder: drop the card on it to remove the card from the binder.
+
+   - With a mouse: press on a card and move it. A plain click (no
+     movement) still opens the card in the card search, like before.
+   - On a phone: press and HOLD a card for a moment until it lifts, then
+     slide it. A quick swipe still turns the page, and a tap still opens
+     the card in the card search.
+   - Press Escape (or drop it outside the pockets) to put it back.
+   ===================================================================== */
+
+// How far the mouse must move (in pixels) before a press becomes a drag.
+// Anything less is treated as a normal click.
+const DRAG_START_DISTANCE = 6;
+
+// How long (milliseconds) a finger must hold still on a card to pick it up.
+const HOLD_TO_DRAG_MS = 350;
+
+// How far a finger can wander while holding before it counts as a swipe
+// or scroll instead of a hold.
+const HOLD_WOBBLE = 10;
+
+// How close to the binder's left or right edge (in pixels) the card must
+// be held to turn the page. This is about the width of the binder's border
+// and padding, so it doesn't reach into the pockets themselves.
+// Anywhere past the edge (outside the binder) counts too.
+const EDGE_ZONE = 18;
+
+// How long the card must be held at an edge before the page turns, and how
+// long to wait before turning again if it's still being held there.
+const EDGE_WAIT_MS = 550;
+
+// The red "remove card" circle in the middle of the binder, and how close
+// (in pixels from its center) the pointer must be to count as "over" it.
+// That's a bit more than the circle's 32px radius, so it's easy to hit.
+const trash = document.getElementById('binderTrash');
+const TRASH_REACH = 44;
+
+// The drag in progress, or null when nothing is being dragged. It holds:
+//  - fromKey:   the pocket the card came from, like "3-5"
+//  - ghost:     the floating copy of the card that follows the pointer
+//  - grabX/Y:   where on the card it was grabbed, so it doesn't jump
+//  - target:    the pocket currently under the card (or null)
+//  - overTrash: true while the card is over the red "remove" circle
+//  - edge:      -1 / 1 while held at the left / right edge, else 0
+let drag = null;
+
+// A mouse press that might become a drag (before it has moved far enough).
+let pendingMouse = null;
+
+// The timer for a finger hold on a phone, and where the finger went down.
+let holdTimer = null;
+let holdStart = null;
+
+// The timer that turns the page while a card is held at an edge.
+let edgeTimer = null;
+
+// When the last drag ended. A click straight after a drag is ignored, so
+// dropping a card doesn't also open it in the card search.
+let lastDragEnd = 0;
+
+// Find a pocket element from its key, like "3-5".
+function pocketElement(key) {
+  const [page, slot] = key.split('-');
+  return binder.querySelector(`.pocket[data-page="${page}"][data-slot="${slot}"]`);
+}
+
+// The key ("3-5") of a pocket element.
+function keyOf(pocket) {
+  return pocketKey(pocket.dataset.page, pocket.dataset.slot);
+}
+
+// Rebuild what's inside one pocket after its card has changed.
+function refreshPocket(key) {
+  const pocket = pocketElement(key);
+  if (!pocket) return;
+  pocket.replaceChildren();
+  fillPocket(pocket, Number(pocket.dataset.page), Number(pocket.dataset.slot));
+}
+
+// The real (visible) pocket under a point on the screen, if any.
+// The floating card ignores the pointer, so this "sees" through it.
+function pocketAt(x, y) {
+  const element = document.elementFromPoint(x, y);
+  const pocket = element && element.closest('.pocket');
+  // Skip the copies on a turning page: only real pockets in the binder count.
+  return pocket && !pocket.closest('.flipper') && binder.contains(pocket) ? pocket : null;
+}
+
+// Pick up the card in a pocket. (x, y) is where the pointer is.
+function beginDrag(pocket, x, y) {
+  const card = binderCards[keyOf(pocket)];
+  if (!card) return;
+
+  // Make the floating copy, the same size as the pocket, and remember
+  // where on the card it was grabbed.
+  const box = pocket.getBoundingClientRect();
+  const ghost = document.createElement('div');
+  ghost.className = 'drag-ghost';
+  ghost.style.width = `${box.width}px`;
+  ghost.style.height = `${box.height}px`;
+  const img = document.createElement('img');
+  img.src = card.image;
+  img.alt = '';
+  ghost.appendChild(img);
+  document.body.appendChild(ghost);
+
+  drag = {
+    fromKey: keyOf(pocket),
+    ghost,
+    grabX: x - box.left,
+    grabY: y - box.top,
+    target: null,
+    overTrash: false,
+    edge: 0
+  };
+
+  pocket.classList.add('drag-source');       // dim the card left behind
+  document.body.classList.add('dragging');   // "grabbing hand" cursor everywhere
+  moveDrag(x, y);
+}
+
+// Move the floating card to follow the pointer, highlight the pocket under
+// it, and check whether it's being held at an edge of the binder.
+function moveDrag(x, y) {
+  if (!drag) return;
+  drag.ghost.style.transform =
+    `translate(${x - drag.grabX}px, ${y - drag.grabY}px) rotate(3deg) scale(1.06)`;
+
+  // Over the red "remove" circle? Light it up. It sits on top of the
+  // pockets, so while over it, no pocket counts as the drop target.
+  drag.overTrash = isOverTrash(x, y);
+  trash.classList.toggle('active', drag.overTrash);
+  drag.ghost.classList.toggle('over-trash', drag.overTrash);   // fade the card so the X shows
+
+  // Highlight the pocket the card would drop into.
+  const target = drag.overTrash ? null : pocketAt(x, y);
+  if (target !== drag.target) {
+    if (drag.target) drag.target.classList.remove('drop-target');
+    if (target && keyOf(target) !== drag.fromKey) target.classList.add('drop-target');
+    drag.target = target;
+  }
+
+  // Is the card at (or past) the binder's left or right edge?
+  const box = binder.getBoundingClientRect();
+  const nearHeight = y > box.top - 40 && y < box.bottom + 40;
+  let edge = 0;
+  if (nearHeight && x < box.left + EDGE_ZONE) edge = -1;
+  if (nearHeight && x > box.right - EDGE_ZONE) edge = 1;
+  setEdge(edge);
+}
+
+// Start or stop the "turn the page" countdown when the card reaches or
+// leaves an edge. The binder's edge glows while the countdown runs.
+function setEdge(edge) {
+  if (edge === drag.edge) return;
+  drag.edge = edge;
+  binder.classList.toggle('edge-left', edge === -1);
+  binder.classList.toggle('edge-right', edge === 1);
+  clearTimeout(edgeTimer);
+  if (edge !== 0) edgeTimer = setTimeout(turnFromEdge, EDGE_WAIT_MS);
+}
+
+// Turn the page toward the edge the card is held at (if there's a page
+// that way), then keep turning while it stays there.
+function turnFromEdge() {
+  if (!drag || drag.edge === 0) return;
+  turnPage(drag.edge);   // does nothing at the first or last page
+  edgeTimer = setTimeout(turnFromEdge, TURN_MS + EDGE_WAIT_MS);
+}
+
+// Is the point (x, y) within reach of the red "remove" circle's center?
+function isOverTrash(x, y) {
+  const box = trash.getBoundingClientRect();
+  if (box.width === 0) return false;   // circle not showing
+  const centerX = box.left + box.width / 2;
+  const centerY = box.top + box.height / 2;
+  return Math.hypot(x - centerX, y - centerY) <= TRASH_REACH;
+}
+
+// Let go of the card.
+//  - Over the red circle: remove the card from the binder.
+//  - Over another pocket: move it there (or swap with the card there).
+//  - Anywhere else: it goes back where it was.
+function endDrag(x, y) {
+  if (!drag) return;
+  const removing = isOverTrash(x, y);
+  const target = removing ? null : pocketAt(x, y);
+  const fromKey = drag.fromKey;
+  const toKey = target ? keyOf(target) : null;
+  finishDrag();
+
+  if (removing) {
+    const removed = binderCards[fromKey];
+    delete binderCards[fromKey];
+    if (!saveBinder(binderCards)) {
+      binderCards[fromKey] = removed;   // saving failed: keep the card
+      alert('Your browser blocked saving, so the card could not be removed.');
+      return;
+    }
+    refreshPocket(fromKey);             // the pocket goes back to a "+"
+    return;
+  }
+
+  if (!toKey || toKey === fromKey) return;   // dropped nowhere new
+
+  // Move the card, and the card that was there (if any) to the old pocket.
+  const moving = binderCards[fromKey];
+  const swapped = binderCards[toKey];
+  binderCards[toKey] = moving;
+  if (swapped) binderCards[fromKey] = swapped;
+  else delete binderCards[fromKey];
+
+  if (!saveBinder(binderCards)) {
+    // Saving failed: undo the move so the page matches what's saved.
+    binderCards[fromKey] = moving;
+    if (swapped) binderCards[toKey] = swapped;
+    else delete binderCards[toKey];
+    alert('Your browser blocked saving, so the card could not be moved.');
+    return;
+  }
+  refreshPocket(fromKey);
+  refreshPocket(toKey);
+}
+
+// Clean up after a drag: remove the floating card, highlights and timers.
+function finishDrag() {
+  if (!drag) return;
+  drag.ghost.remove();
+  if (drag.target) drag.target.classList.remove('drop-target');
+  trash.classList.remove('active');
+  const source = pocketElement(drag.fromKey);
+  if (source) source.classList.remove('drag-source');
+  clearTimeout(edgeTimer);
+  binder.classList.remove('edge-left', 'edge-right');
+  document.body.classList.remove('dragging');
+  drag = null;
+  lastDragEnd = Date.now();
+}
+
+// --- With a mouse (or pen) -------------------------------------------
+
+// Pressing on a card: remember it, but don't start dragging until the
+// mouse has moved a little, so a simple click still works.
+binder.addEventListener('pointerdown', (event) => {
+  if (event.pointerType === 'touch' || event.button !== 0) return;   // left button only
+  const pocket = event.target.closest('.pocket');
+  if (!pocket || !binderCards[keyOf(pocket)] || turning) return;
+  event.preventDefault();   // stop the browser selecting text while dragging
+  pendingMouse = { pocket, x: event.clientX, y: event.clientY };
+});
+
+// Moving the mouse: start the drag once it has moved far enough, then
+// keep the floating card following it.
+window.addEventListener('pointermove', (event) => {
+  if (event.pointerType === 'touch') return;
+  if (pendingMouse) {
+    const moved = Math.hypot(event.clientX - pendingMouse.x, event.clientY - pendingMouse.y);
+    if (moved >= DRAG_START_DISTANCE) {
+      beginDrag(pendingMouse.pocket, pendingMouse.x, pendingMouse.y);
+      pendingMouse = null;
+    }
+  }
+  moveDrag(event.clientX, event.clientY);
+});
+
+// Letting go of the mouse button: drop the card.
+window.addEventListener('pointerup', (event) => {
+  if (event.pointerType === 'touch') return;
+  pendingMouse = null;
+  endDrag(event.clientX, event.clientY);
+});
+
+// --- With a finger (phones and tablets) -------------------------------
+
+// Touching a card starts the "hold" countdown. If the finger stays put
+// long enough, the card lifts and can be dragged.
+binder.addEventListener('touchstart', (event) => {
+  if (event.touches.length !== 1 || turning) return;
+  const pocket = event.target.closest('.pocket');
+  if (!pocket || !binderCards[keyOf(pocket)]) return;
+  const touch = event.touches[0];
+  holdStart = { x: touch.clientX, y: touch.clientY };
+  clearTimeout(holdTimer);
+  holdTimer = setTimeout(() => {
+    holdTimer = null;
+    beginDrag(pocket, holdStart.x, holdStart.y);
+    if (navigator.vibrate) navigator.vibrate(15);   // a tiny buzz, on phones that can
+  }, HOLD_TO_DRAG_MS);
+}, { passive: true });
+
+// Moving the finger: before the card lifts, moving too far cancels the hold
+// (it was a swipe or scroll). Once lifted, the card follows the finger,
+// and "preventDefault" stops the page scrolling at the same time.
+// ("passive: false" is needed so preventDefault is allowed.)
+binder.addEventListener('touchmove', (event) => {
+  const touch = event.touches[0];
+  if (holdTimer && Math.hypot(touch.clientX - holdStart.x, touch.clientY - holdStart.y) > HOLD_WOBBLE) {
+    clearTimeout(holdTimer);
+    holdTimer = null;
+  }
+  if (drag) {
+    event.preventDefault();
+    moveDrag(touch.clientX, touch.clientY);
+  }
+}, { passive: false });
+
+// Lifting the finger: drop the card (or just cancel a hold that never lifted).
+binder.addEventListener('touchend', (event) => {
+  clearTimeout(holdTimer);
+  holdTimer = null;
+  if (drag) {
+    const touch = event.changedTouches[0];
+    endDrag(touch.clientX, touch.clientY);
+  }
+});
+
+// The phone interrupted the touch (for example a call came in): put the
+// card back where it was.
+binder.addEventListener('touchcancel', () => {
+  clearTimeout(holdTimer);
+  holdTimer = null;
+  finishDrag();
+});
+
+// --- Both ----------------------------------------------------------------
+
+// Escape puts the card back where it came from.
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    pendingMouse = null;
+    finishDrag();
+  }
+});
+
+// If the browser window loses focus mid-drag (for example the mouse was
+// let go outside the window, or you switched apps), put the card back too.
+window.addEventListener('blur', () => {
+  pendingMouse = null;
+  finishDrag();
+});
+
+// Ignore the click that browsers send right after a drag ends, so dropping
+// a card doesn't also open it in the card search. ("true" = catch the click
+// on its way down, before the link sees it.)
+binder.addEventListener('click', (event) => {
+  if (drag || Date.now() - lastDragEnd < 400) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}, true);
+
+// A long press on a phone normally opens a menu (Save image, Open link…).
+// Block that menu on cards, since a long press now picks the card up.
+binder.addEventListener('contextmenu', (event) => {
+  if (event.target.closest('.pocket-card')) event.preventDefault();
 });
 
 // When the page opens, start on the page named in the address, if any.

@@ -407,6 +407,9 @@ main {
 .pocket-card {
   position: absolute;
   inset: 0;
+  /* On iPhones, a long press normally pops up a link preview. A long
+     press now picks the card up instead, so turn that preview off. */
+  -webkit-touch-callout: none;
 }
 
 /* The card picture fills its pocket */
@@ -415,6 +418,143 @@ main {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  -webkit-user-drag: none;   /* no browser "drag the picture" (Safari) */
+}
+
+/* =====================================================================
+   DRAGGING CARDS BETWEEN POCKETS (see DRAGGING CARDS in javascript.js)
+   ===================================================================== */
+
+/* Dragging shouldn't highlight (select) text or pictures in the binder */
+.binder {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* The pocket a card is being dragged OUT of: the card left behind fades */
+.pocket.drag-source .pocket-card { opacity: 0.25; }
+
+/*
+  The pocket the card would drop INTO: an accent-colored dashed outline
+  inside its edge, plus a soft glow. (A negative outline-offset draws the
+  outline inside the pocket instead of around it.)
+*/
+.pocket.drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+  box-shadow: inset 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/*
+  The floating copy of the card that follows the mouse or finger.
+  "position: fixed" places it relative to the window; the script moves it
+  with "transform". It ignores the pointer (pointer-events: none), so the
+  script can see which pocket is underneath it.
+*/
+.drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  border-radius: 4px;
+  overflow: hidden;
+  pointer-events: none;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5);
+  will-change: transform;    /* hint to the browser: this moves a lot */
+}
+.drag-ghost img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/*
+  The red "remove card" circle in the middle of the binder.
+  It's centered with "top/left: 50%" plus a "translate(-50%, -50%)" pull
+  back by half its own size. It sits above the pages (z-index 5) and is
+  hidden (display: none) until a card is being dragged.
+*/
+.binder-trash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 5;
+  display: none;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  color: #ffffff;
+  background: #c0392b;
+  border: 3px solid #ffffff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.binder-trash svg { width: 30px; height: 30px; }
+
+/* Show it (as a centered grid) only while a card is being dragged */
+body.dragging .binder-trash { display: grid; }
+
+/* A card is over it: grow it and turn it a brighter red, so it's clear
+   that letting go here will remove the card */
+.binder-trash.active {
+  background: #e74c3c;
+  transform: translate(-50%, -50%) scale(1.25);
+}
+
+/* The floating card fades while it's over the circle. The circle is drawn
+   underneath the floating card, so this lets the red X show through, and
+   the fading hints that the card is about to go away. */
+.drag-ghost { transition: opacity 0.15s ease; }
+.drag-ghost.over-trash { opacity: 0.3; }
+
+/* While dragging, show the "grabbing hand" cursor everywhere */
+body.dragging,
+body.dragging * {
+  cursor: grabbing !important;
+}
+
+/*
+  The glow on the binder's left or right edge while a card is held there,
+  showing that the page is about to turn. "::after" draws it without extra
+  HTML. It pulses (the "edge-pulse" animation below) while it waits.
+*/
+.binder.edge-left::after,
+.binder.edge-right::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 70px;
+  z-index: 4;
+  pointer-events: none;
+  animation: edge-pulse 0.8s ease-in-out infinite alternate;
+}
+.binder.edge-left::after {
+  left: 0;
+  border-radius: 12px 0 0 12px;
+  background: linear-gradient(to right,
+    color-mix(in srgb, var(--accent) 55%, transparent), transparent);
+}
+.binder.edge-right::after {
+  right: 0;
+  border-radius: 0 12px 12px 0;
+  background: linear-gradient(to left,
+    color-mix(in srgb, var(--accent) 55%, transparent), transparent);
+}
+
+/* The pulse: the glow fades between half and full strength */
+@keyframes edge-pulse {
+  from { opacity: 0.5; }
+  to   { opacity: 1; }
+}
+
+/* People who turn on "reduce motion" get a steady glow, no pulsing */
+@media (prefers-reduced-motion: reduce) {
+  .binder.edge-left::after,
+  .binder.edge-right::after { animation: none; }
 }
 
 /* Keyboard focus outline for both kinds of pocket link */

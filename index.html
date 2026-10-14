@@ -83,7 +83,20 @@
       the pages (each with 16 pockets, showing a saved card or a "+")
       and shows one or two pages at a time.
     -->
-    <section id="binder" class="binder" aria-label="Card binder"></section>
+    <section id="binder" class="binder" aria-label="Card binder">
+      <!--
+        The "remove card" spot: a red circle with an X in the middle of the
+        binder. It's hidden until a card is being dragged; dropping the card
+        on it takes the card out of the binder. (aria-hidden: it only works
+        with dragging, so screen readers skip it.)
+      -->
+      <div id="binderTrash" class="binder-trash" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+             stroke-linecap="round">
+          <path d="M7 7l10 10M17 7L7 17"/>
+        </svg>
+      </div>
+    </section>
 
     <!-- Previous / Next page links, with the current page number between them -->
     <nav class="page-nav" aria-label="Binder pages">
