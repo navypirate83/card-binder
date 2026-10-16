@@ -1,6 +1,7 @@
 /* =========================================================================
    GOOGLE SIGN-IN AND GOOGLE DRIVE
-   Shared by index.html (the landing page) and binder.html (a binder).
+   Shared by index.html (the landing page), binder.html (a binder) and
+   cardsearch.html (the card search: who's logged in, and Sign out).
 
    How it works:
    - "Sign in with Google" uses Google's own sign-in library (loaded from
@@ -273,16 +274,28 @@ async function getBinderFolderId() {
 }
 
 // List the binder files in the folder, oldest first:
-// [{ id, name, createdTime, appProperties }, ...]. "name" is the file name,
-// e.g. "Binder 1.json". "appProperties" are small labels this app stores on
-// the file itself, like { color: "U" } for a blue binder (see createBinderFile).
+// [{ id, name, appProperties }, ...]. "name" is the file name, e.g.
+// "Binder 1.json". "appProperties" are small labels this app stores on the
+// file itself, like { color: "U", pages: "10", order: "2" } (see
+// createBinderFile and updateBinderDetails).
+// Drive hands lists back in batches (up to 1000 files each) with a
+// "nextPageToken" when there are more, so keep asking until there's none:
+// there's no limit on how many binders someone can have.
 async function listBinderFiles() {
   const folderId = await getBinderFolderId();
   const query = `'${folderId}' in parents and mimeType='application/json' and trashed=false`;
-  const response = await driveRequest(
-    `${DRIVE_API}/files?q=${encodeURIComponent(query)}` +
-    `&fields=files(id,name,createdTime,appProperties)&orderBy=createdTime&pageSize=100`);
-  return (await response.json()).files;
+  const files = [];
+  let pageToken = '';
+  do {
+    const response = await driveRequest(
+      `${DRIVE_API}/files?q=${encodeURIComponent(query)}` +
+      `&fields=nextPageToken,files(id,name,appProperties)&orderBy=createdTime&pageSize=1000` +
+      (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''));
+    const batch = await response.json();
+    files.push(...batch.files);
+    pageToken = batch.nextPageToken || '';
+  } while (pageToken);
+  return files;
 }
 
 // Read one binder file's contents (the binder data).
@@ -300,17 +313,20 @@ async function writeBinderFile(fileId, data) {
   });
 }
 
-// Make a new binder file in the folder. Returns { id, name, createdTime }.
-// "color" is the cover's color symbol ("W", "U", "B", "R", "G", "C") or
-// null for none, and "order" is its spot on the shelf (0 = first). Both are
-// stored as labels on the file's details, so the shelf can show them
-// without opening every binder.
+// Make a new binder file in the folder, holding these cards (often none).
+// Returns { id, name }.
+// "color" is the cover's symbol code from MANA_COLORS (e.g. "U", "PW" or
+// "WU") or null for none, and "order" is its spot on the shelf (0 = first).
+// Both are stored as labels on the file's details, so the shelf can show
+// them without opening every binder. New binders have DEFAULT_PAGES pages.
 // A new file needs two things sent together: its details (name, folder)
 // and its contents. Drive takes both in one "multipart" message: two parts
 // separated by a "boundary" line that appears nowhere else.
-async function createBinderFile(name, data, color = null, order = null) {
+async function createBinderFile(name, cards = {}, color = null, order = null) {
   const folderId = await getBinderFolderId();
   const boundary = `binder-${Date.now()}`;
+  // The file's contents: the same layout binderFileData (binder-storage.js) writes.
+  const data = { app: FILE_APP_NAME, version: 1, name, color, pages: DEFAULT_PAGES, cards };
   const details = { name: `${name}.json`, mimeType: 'application/json', parents: [folderId] };
   const labels = {};
   if (color) labels.color = color;
@@ -323,7 +339,7 @@ async function createBinderFile(name, data, color = null, order = null) {
     `${JSON.stringify(data, null, 2)}\r\n` +
     `--${boundary}--`;
   const response = await driveRequest(
-    `${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,name,createdTime`, {
+    `${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,name`, {
       method: 'POST',
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
       body

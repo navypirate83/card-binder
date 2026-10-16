@@ -21,7 +21,7 @@
   --accent: #a8492a;
   --accent-text: #ffffff;
   --error: #c0392b;
-  /* General shadow for pop-up lists and the Share button */
+  /* General shadow for pop-up lists and the Share / Add to binder buttons */
   --shadow: 0 10px 30px rgba(40, 30, 20, 0.15);
   /* The card's own shadow: a tight one close to the edges plus a soft one
      spreading below, so it looks like it's resting just above the page */
@@ -369,16 +369,18 @@ main {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /*
-  The round Share button. "position: absolute" takes it out of the normal
-  layout, and "left: 100% + 12px" places it just past the card's right
-  edge — so the card stays exactly where it was.
-  "top: 33.333%" moves its top edge one third of the way down the card,
-  and "translateY(-50%)" pulls it back up by half its own height, so the
-  button's middle sits exactly one third of the way down.
+  The two round buttons beside the card: Share and "Add to binder".
+  They share their size, shape and placement:
+  - "position: absolute" takes them out of the normal layout, and
+    "left: 100% + 12px" places them just past the card's right edge, so
+    the card stays exactly where it was.
+  - Each one's "top" (below) moves its top edge part way down the card, and
+    "translateY(-50%)" pulls it back up by half its own height, so the
+    button's MIDDLE sits at that point.
 */
-.share-button {
+.share-button,
+.binder-button {
   position: absolute;
-  top: 33.333%;
   left: calc(100% + 12px);
   transform: translateY(-50%);
   display: grid;
@@ -386,49 +388,43 @@ main {
   width: 44px;
   height: 44px;
   padding: 0;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 50%;
   box-shadow: var(--shadow);
   cursor: pointer;
+}
+
+/* Share: one third of the way down the card, white with a thin border,
+   and its icon turns the accent color when the mouse is over it */
+.share-button {
+  top: 33.333%;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 .share-button:hover { color: var(--accent); }
 .share-button svg { width: 20px; height: 20px; }
 
-/*
-  The "Add to binder" button: a round button with a "+" sign. It's the
-  same size and shape as the Share button and sits beside the card like
-  it, but another third of the card lower (two thirds of the way down).
-  It uses the accent color so it stands out as the main action.
-*/
+/* "Add to binder" (a "+" sign): two thirds of the way down the card, in the
+   accent color so it stands out as the main action */
 .binder-button {
-  position: absolute;
   top: 66.667%;
-  left: calc(100% + 12px);
-  transform: translateY(-50%);
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
   color: var(--accent-text);
   background: var(--accent);
   border: none;
-  border-radius: 50%;
-  box-shadow: var(--shadow);
-  cursor: pointer;
-  transition: transform 0.2s ease, filter 0.2s ease;
+  transition: filter 0.2s ease;
 }
 
-/* The "+" drawing inside the button */
-.binder-button svg { width: 22px; height: 22px; }
+/* The "+" drawing inside it. It turns smoothly (see the hover rule below). */
+.binder-button svg {
+  width: 22px;
+  height: 22px;
+  transition: transform 0.25s ease;
+}
 
 /* On hover: a little brighter, and the "+" turns a quarter turn
    (it looks the same after turning, so it just "spins" into place) */
 .binder-button:hover { filter: brightness(1.1); }
 .binder-button:hover svg { transform: rotate(90deg); }
-.binder-button svg { transition: transform 0.25s ease; }
 
 /* People who turn on "reduce motion" get no spin */
 @media (prefers-reduced-motion: reduce) {
@@ -517,9 +513,9 @@ main {
 }
 
 /*
-  Shared look for both pickers: the custom Set button and the normal
-  Version drop-down. "appearance: none" removes the browser's own
-  styling so both look the same.
+  Shared look for all three pickers: the custom Set button and the normal
+  Version and Language drop-downs. "appearance: none" removes the
+  browser's own styling so they all look the same.
 */
 .picker {
   width: 100%;
@@ -547,7 +543,7 @@ main {
 /* Greyed-out look before a card has been searched */
 .picker:disabled { opacity: 0.55; cursor: not-allowed; }
 
-/* The options inside the Version drop-down use theme colors too */
+/* The options inside the Version and Language drop-downs use theme colors too */
 .picker option { background: var(--surface); color: var(--text); }
 
 /*
@@ -744,6 +740,14 @@ main {
   font-size: 0.9rem;
   line-height: 20px;
   transition: background-color 0.25s;
+  /* Inside, a grid with three columns: the page links in the middle one and
+     "Sign out" in the right one, pushed to the far right edge. The two
+     outer columns ("1fr") are always equal in width, which keeps the page
+     links exactly centered on the page. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  column-gap: 16px;
 }
 
 /* Leave room at the bottom of the page for the pinned footer (43px), so
@@ -780,21 +784,10 @@ body { padding-bottom: 43px; }
 }
 /* =====================================================================
    FOOTER LAYOUT AND THE "SIGN OUT" LINK
-   (the same rules are in style.css, landing.css and cardsearch.css)
+   (the same rules are in style.css and landing.css)
    ===================================================================== */
 
-/*
-  The footer is a grid with three columns. The page links sit in the
-  middle one, and "Sign out" sits in the right one, pushed to the far
-  right edge. The two outer columns ("1fr") are always equal in width,
-  which keeps the page links exactly centered on the page.
-*/
-.site-footer {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  column-gap: 16px;
-}
+/* The page links go in the footer's middle column (see .site-footer) */
 .site-footer nav { grid-column: 2; }
 
 /*

@@ -19,11 +19,24 @@ const deleteBinderDialog = document.getElementById('deleteBinderDialog');
 const deleteBinderText   = document.getElementById('deleteBinderText');
 const editDropZone       = document.getElementById('editDropZone');
 const deleteDropZone     = document.getElementById('deleteDropZone');
+const newBinderName      = document.getElementById('newBinderName');
+const newNameCount       = document.getElementById('newNameCount');
+const binderPagesInput   = document.getElementById('binderPagesInput');
+const pagesNote          = document.getElementById('pagesNote');
+
+function setShelfMessage(text, isError = false) {
+  shelfMessage.textContent = text;
+  shelfMessage.classList.toggle('error', isError);
+}
+
+function cardCountText(count) {
+  return `${count} card${count === 1 ? '' : 's'}`;
+}
 
 function setTheme(theme) {
   root.setAttribute('data-theme', theme);
   themeSwitch.setAttribute('aria-checked', String(theme === 'dark'));
-  try { localStorage.setItem('theme', theme); } catch (e) {  }
+  storageSet('theme', theme);
 }
 
 themeSwitch.addEventListener('click', () => {
@@ -60,8 +73,7 @@ async function showSignedIn() {
   footerSignOut.hidden = false;
   myBindersItem.hidden = false;
   renderShelf(loadBinderList());
-  shelfMessage.classList.remove('error');
-  shelfMessage.textContent = 'Loading your binders…';
+  setShelfMessage('Loading your binders…');
 
   try {
     const user = await getDriveUser();
@@ -88,14 +100,13 @@ async function showSignedIn() {
     await Promise.all(binders.map((b) => syncBinder(b.id)));
 
     renderShelf(binders);
-    shelfMessage.textContent = '';
+    setShelfMessage('');
   } catch (err) {
     if (err.signedOut) {
       showSignedOut(err.message);
       return;
     }
-    shelfMessage.classList.add('error');
-    shelfMessage.textContent = `Couldn't load your binders from Google Drive. ${err.message}`;
+    setShelfMessage(`Couldn't load your binders from Google Drive. ${err.message}`, true);
   }
 }
 
@@ -106,7 +117,7 @@ async function moveOldCardsIntoFirstBinder() {
   if (Object.keys(cards).length === 0) return [];
 
   const name = 'Binder 1';
-  const file = await createBinderFile(name, { app: FILE_APP_NAME, version: 1, name, color: null, cards });
+  const file = await createBinderFile(name, cards);
   saveBinder(cards, file.id, { dirty: false });
   storageRemove(OLD_SINGLE_BINDER_KEY);
   return [{ id: file.id, name, color: null, pages: DEFAULT_PAGES }];
@@ -124,8 +135,8 @@ function renderShelf(binders) {
     tile.draggable = false;
     const color = manaColor(binder.color);
     const colorWords = color ? `, ${color.name}` : '';
-    tile.setAttribute('aria-label', `Open ${binder.name}${colorWords}, ${count} card${count === 1 ? '' : 's'}`);
-    tile.append(closedBinder(binder.name, binder.color), caption(`${count} card${count === 1 ? '' : 's'}`));
+    tile.setAttribute('aria-label', `Open ${binder.name}${colorWords}, ${cardCountText(count)}`);
+    tile.append(closedBinder(binder.name, binder.color), caption(cardCountText(count)));
     binderShelf.appendChild(tile);
   }
 
@@ -241,9 +252,6 @@ function buildColorChoices(container, groupName) {
 }
 buildColorChoices(colorChoices, 'binderColor');
 
-const newBinderName = document.getElementById('newBinderName');
-const newNameCount  = document.getElementById('newNameCount');
-
 function showNameCount(input, counter) {
   counter.textContent = `${input.value.length} / ${input.maxLength}`;
 }
@@ -276,24 +284,22 @@ async function makeNewBinder(name, color) {
   const binders = loadBinderList();
   const addTile = document.getElementById('addBinderTile');
   if (addTile) addTile.disabled = true;
-  shelfMessage.classList.remove('error');
-  shelfMessage.textContent = 'Making a new binder…';
+  setShelfMessage('Making a new binder…');
 
   try {
-    const file = await createBinderFile(name, { app: FILE_APP_NAME, version: 1, name, color, cards: {} }, color, binders.length);
+    const file = await createBinderFile(name, {}, color, binders.length);
     saveBinder({}, file.id, { dirty: false });
     binders.push({ id: file.id, name, color, pages: DEFAULT_PAGES });
     saveBinderList(binders);
     renderShelf(binders);
-    shelfMessage.textContent = '';
+    setShelfMessage('');
   } catch (err) {
     if (err.signedOut) {
       showSignedOut(err.message);
       return;
     }
     if (addTile) addTile.disabled = false;
-    shelfMessage.classList.add('error');
-    shelfMessage.textContent = `Couldn't make a new binder. ${err.message}`;
+    setShelfMessage(`Couldn't make a new binder. ${err.message}`, true);
   }
 }
 
@@ -397,15 +403,13 @@ function moveBinder(id, targetId) {
 }
 
 async function saveShelfOrder(binders) {
-  shelfMessage.classList.remove('error');
-  shelfMessage.textContent = 'Saving the new order…';
+  setShelfMessage('Saving the new order…');
   try {
     await Promise.all(binders.map((b, index) => updateBinderDetails(b.id, { order: index })));
-    shelfMessage.textContent = '';
+    setShelfMessage('');
   } catch (err) {
     if (err.signedOut) { showSignedOut(err.message); return; }
-    shelfMessage.classList.add('error');
-    shelfMessage.textContent = `Couldn't save the new order to Google Drive. ${err.message}`;
+    setShelfMessage(`Couldn't save the new order to Google Drive. ${err.message}`, true);
   }
 }
 
@@ -489,9 +493,6 @@ binderShelf.addEventListener('contextmenu', (event) => {
   if (event.target.closest('a.binder-tile')) event.preventDefault();
 });
 
-const binderPagesInput = document.getElementById('binderPagesInput');
-const pagesNote        = document.getElementById('pagesNote');
-
 function updatePagesNote() {
   const pages = Number(binderPagesInput.value);
   const min = Number(binderPagesInput.min);
@@ -507,8 +508,6 @@ function updatePagesNote() {
 }
 binderPagesInput.addEventListener('input', updatePagesNote);
 
-const NAME_LIMIT = binderNameInput.maxLength;
-
 let editingId = null;
 
 buildColorChoices(editColorChoices, 'editColor');
@@ -519,7 +518,7 @@ function openEditDialog(id) {
   const binder = loadBinderList().find((b) => b.id === id);
   if (!binder) return;
   editingId = id;
-  binderNameInput.value = binder.name.slice(0, NAME_LIMIT);
+  binderNameInput.value = binder.name.slice(0, binderNameInput.maxLength);
   showNameCount(binderNameInput, nameCount);
   const cardCount = Object.keys(loadBinder(id)).length;
   binderPagesInput.min = minPagesFor(cardCount);
@@ -536,11 +535,11 @@ editBinderDialog.addEventListener('close', async () => {
   const id = editingId;
   editingId = null;
   if (editBinderDialog.returnValue !== 'save' || !id) return;
-  const name = binderNameInput.value.trim().slice(0, NAME_LIMIT);
+  const name = binderNameInput.value.trim().slice(0, binderNameInput.maxLength);
   if (!name) return;
   const picked = editBinderDialog.querySelector('input[name="editColor"]:checked');
   const color = picked && picked.value ? picked.value : null;
-  let pages = Math.min(Math.max(cleanPageCount(binderPagesInput.value), Number(binderPagesInput.min)), MAX_PAGES);
+  let pages = Math.max(cleanPageCount(binderPagesInput.value), Number(binderPagesInput.min));
   const oldPages = binderPages(id);
 
   const binders = loadBinderList();
@@ -552,8 +551,7 @@ editBinderDialog.addEventListener('close', async () => {
   saveBinderList(binders);
   renderShelf(binders);
 
-  shelfMessage.classList.remove('error');
-  shelfMessage.textContent = 'Saving…';
+  setShelfMessage('Saving…');
   try {
     if (pages < oldPages) {
       const cards = await syncBinder(id);
@@ -571,11 +569,10 @@ editBinderDialog.addEventListener('close', async () => {
       }
     }
     await updateBinderDetails(id, { name, color, pages });
-    shelfMessage.textContent = '';
+    setShelfMessage('');
   } catch (err) {
     if (err.signedOut) { showSignedOut(err.message); return; }
-    shelfMessage.classList.add('error');
-    shelfMessage.textContent = `Couldn't save the changes to Google Drive. ${err.message}`;
+    setShelfMessage(`Couldn't save the changes to Google Drive. ${err.message}`, true);
   }
 });
 closeOnBackdropClick(editBinderDialog);
@@ -588,7 +585,7 @@ function openDeleteDialog(id) {
   deletingId = id;
   const count = Object.keys(loadBinder(id)).length;
   deleteBinderText.textContent =
-    `"${binder.name}" and its ${count} card${count === 1 ? '' : 's'} will be deleted. ` +
+    `"${binder.name}" and its ${cardCountText(count)} will be deleted. ` +
     'It goes to your Google Drive trash, where it can be restored for 30 days.';
   deleteBinderDialog.returnValue = '';
   deleteBinderDialog.showModal();
@@ -598,17 +595,15 @@ deleteBinderDialog.addEventListener('close', async () => {
   const id = deletingId;
   deletingId = null;
   if (deleteBinderDialog.returnValue !== 'yes' || !id) return;
-  shelfMessage.classList.remove('error');
-  shelfMessage.textContent = 'Deleting…';
+  setShelfMessage('Deleting…');
   try {
     await trashBinderFile(id);
     forgetBinder(id);
     renderShelf(loadBinderList());
-    shelfMessage.textContent = '';
+    setShelfMessage('');
   } catch (err) {
     if (err.signedOut) { showSignedOut(err.message); return; }
-    shelfMessage.classList.add('error');
-    shelfMessage.textContent = `Couldn't delete the binder. ${err.message}`;
+    setShelfMessage(`Couldn't delete the binder. ${err.message}`, true);
   }
 });
 closeOnBackdropClick(deleteBinderDialog);

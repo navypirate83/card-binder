@@ -87,7 +87,8 @@
       <select id="languageSelect" class="picker" disabled></select>
     </div>
 
-    <!-- The card picture, with the Share button beside it -->
+    <!-- The card picture, with the Share and Add to binder buttons beside it,
+         and the "Link copied!" message -->
     <div class="card-stage">
       <div id="cardFrame" class="card-frame">
         <img id="cardImage" alt="">
@@ -107,7 +108,8 @@
       </button>
 
       <!--
-        Add to binder button (hidden until a card is shown). It only shows a
+        Add to binder button (hidden until a card is shown, and always hidden
+        when nobody is logged in). It only shows a
         "+" sign, so aria-label gives screen readers its name and title shows
         "Add to binder" as a tooltip when the mouse rests on it.
       -->
@@ -195,7 +197,8 @@
   <!-- Shared code for saving and loading the binders' cards (also used by the binder pages) -->
   <script src="binder-storage.js"></script>
 
-  <!-- Shared code for Google sign-in and Google Drive (here: the Sign out link) -->
+  <!-- Shared code for Google sign-in and Google Drive (here: checking who's
+       logged in, and the Sign out link) -->
   <script src="google-drive.js"></script>
 
   <!-- All the page's code lives in cardsearch.js -->

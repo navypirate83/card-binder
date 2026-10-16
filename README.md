@@ -5,7 +5,7 @@ A Magic: The Gathering card binder. Sign in with Google, make as many binders as
 **Live app:** https://navypirate83.github.io/card-binder/
 
 ## Pages
-- **My Binders (`index.html`)** – the landing page. Sign in with Google, then pick a binder from the shelf, or click the "+" binder to make a new one. Drag a binder to reorder it, onto the pencil to rename it, change its symbol or its number of pages (1–50), or onto the red X to delete it.
+- **My Binders (`index.html`)** – the landing page. Sign in with Google, then pick a binder from the shelf, or click the "+" binder to make a new one. Drag a binder to reorder it, onto the pencil to rename it, change its symbol or its number of pages (1–150), or onto the red X to delete it.
 - **Binder (`binder.html`)** – one binder. Turn pages, drag cards between pockets (hold at an edge to turn the page, drop on the red X to remove), download/upload a `.json` backup.
 - **Card Search (`cardsearch.html`)** – search any Magic card and view every printing:
   - Fuzzy search with live suggestions after 3 letters (ignores punctuation and forgives typos)

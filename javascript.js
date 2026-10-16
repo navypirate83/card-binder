@@ -49,7 +49,7 @@ document.getElementById('cardSearchLink').href = `cardsearch.html?binder=${encod
 function setTheme(theme) {
   root.setAttribute('data-theme', theme);
   themeSwitch.setAttribute('aria-checked', String(theme === 'dark'));
-  try { localStorage.setItem('theme', theme); } catch (e) { /* storage blocked: ignore */ }
+  storageSet('theme', theme);   // binder-storage.js (ignores blocked storage)
 }
 
 // Clicking the switch flips between light and dark.
@@ -65,7 +65,7 @@ themeSwitch.setAttribute('aria-checked', String(root.getAttribute('data-theme') 
    BUILDING THE BINDER POCKETS
    ===================================================================== */
 
-// POCKETS_PER_PAGE, binderPages(), loadBinder() and pocketKey() come from
+// POCKETS_PER_PAGE, MAX_PAGES, binderPages(), loadBinder() and pocketKey() come from
 // binder-storage.js (loaded before this file in binder.html), which the
 // other pages share, so they all agree on each binder's size.
 
@@ -75,7 +75,7 @@ themeSwitch.setAttribute('aria-checked', String(root.getAttribute('data-theme') 
 const binderCards = loadBinder(BINDER_ID);
 
 // How many pages this binder has (set in Binder properties on the My
-// Binders page; 10 unless changed). Just in case, it's never fewer than the
+// Binders page; DEFAULT_PAGES unless changed). Just in case, it's never fewer than the
 // highest page that has a card on it, so no card is ever out of sight.
 const highestUsedPage = Math.max(0, ...Object.keys(binderCards).map((key) => Number(key.split('-')[0])));
 const TOTAL_PAGES = Math.min(Math.max(binderPages(BINDER_ID), highestUsedPage), MAX_PAGES);
@@ -99,6 +99,17 @@ function searchLinkFor(page, slot, card) {
   return `cardsearch.html?${params}`;
 }
 
+// Card pictures are only downloaded for the pages you're looking at, plus
+// a couple of pages either side, so they're ready before you turn to them.
+// (A full 150-page binder has 2,400 cards: downloading every picture at
+// once would be well over 100 MB.) This is done by this page itself rather
+// than the browser's built-in loading="lazy", because some phone browsers
+// never load lazy pictures that start on a hidden page.
+//  - PICTURE_PAGES_AHEAD: how many pages either side to load ahead
+//  - loadedPages: the pages whose pictures have been asked for already
+const PICTURE_PAGES_AHEAD = 2;
+const loadedPages = new Set();
+
 // Put the right thing inside a pocket:
 //  - a saved card: its picture, which links to that card on cardsearch.html
 //  - nothing saved: a white "+" link to cardsearch.html to pick a card
@@ -111,13 +122,12 @@ function fillPocket(pocket, page, slot) {
     link.className = 'pocket-card';
     link.setAttribute('aria-label', `${card.name}, pocket ${slot}. Open in card search`);
     const img = document.createElement('img');
-    img.src = card.image;
+    // On a page near the one you're looking at: show the picture now.
+    // Otherwise keep its address in "data-src" until you get near that
+    // page (see loadPicturesNear).
+    if (loadedPages.has(page)) img.src = card.image;
+    else img.dataset.src = card.image;
     img.alt = '';                 // the link's label already names the card
-    // Download every card picture right away, even on pages you can't see
-    // yet, so the cards are already there when you turn to their page.
-    // (We don't use loading="lazy": some phone browsers never load lazy
-    // pictures that start on a hidden page, leaving those pockets blank.)
-    img.loading = 'eager';
     // Turn off the browser's own "drag a picture or link" feature: we
     // handle dragging cards between pockets ourselves (see DRAGGING CARDS).
     img.draggable = false;
@@ -208,10 +218,30 @@ function pageElement(number) {
 
 // Show exactly the pages in the list (e.g. [3, 4]) and hide all others.
 // The binder's grid places the shown pages left-to-right in page order.
+// Then make sure the pictures on and near those pages are loading.
 function showOnly(numbers) {
   binder.querySelectorAll('.binder-page').forEach((page) => {
     page.hidden = !numbers.includes(Number(page.dataset.page));
   });
+  loadPicturesNear(numbers);
+}
+
+// Start downloading the card pictures on these pages and on the
+// PICTURE_PAGES_AHEAD pages either side (each page only once): every
+// picture still waiting in "data-src" gets its real "src".
+function loadPicturesNear(numbers) {
+  const first = Math.max(1, Math.min(...numbers) - PICTURE_PAGES_AHEAD);
+  const last = Math.min(TOTAL_PAGES, Math.max(...numbers) + PICTURE_PAGES_AHEAD);
+  for (let number = first; number <= last; number++) {
+    if (loadedPages.has(number)) continue;
+    loadedPages.add(number);
+    const page = pageElement(number);
+    if (!page) continue;
+    for (const img of page.querySelectorAll('img[data-src]')) {
+      img.src = img.dataset.src;
+      delete img.dataset.src;
+    }
+  }
 }
 
 /* =====================================================================
@@ -497,7 +527,10 @@ binder.addEventListener('touchstart', (event) => {
 // than up/down, so normal scrolling up and down doesn't turn the page.
 binder.addEventListener('touchend', (event) => {
   if (!PHONE_QUERY.matches) return;   // swiping is for the phone layout only
-  if (drag) return;                   // the finger was dragging a card, not swiping
+  // The finger was dragging a card, not swiping. (This works because this
+  // listener is added before the drag code's own "touchend" listener below,
+  // so it runs first, while `drag` is still set. Keep it above that code.)
+  if (drag) return;
   const moveX = event.changedTouches[0].clientX - touchStartX;
   const moveY = event.changedTouches[0].clientY - touchStartY;
   if (Math.abs(moveX) < SWIPE_DISTANCE || Math.abs(moveX) < Math.abs(moveY)) return;
@@ -510,8 +543,9 @@ binder.addEventListener('touchend', (event) => {
    on a pocket that already has a card and the two cards swap places.
    Hold a dragged card at the left or right edge of the binder to turn
    the page, so you can move a card to a different page.
-   While dragging, a red circle with an X appears in the middle of the
-   binder: drop the card on it to remove the card from the binder.
+   While dragging, two circles appear on the binder: drop the card on the
+   red X to remove it from the binder, or on the blue circle to move it to
+   another binder.
 
    - With a mouse: press on a card and move it. A plain click (no
      movement) still opens the card in the card search, like before.
@@ -548,15 +582,13 @@ const EDGE_WAIT_MS = 550;
 // it. That's a bit more than the circles' 32px radius, so they're easy to hit.
 const trash = document.getElementById('binderTrash');
 const moveCircle = document.getElementById('binderMove');
-const TRASH_REACH = 44;
+const CIRCLE_REACH = 44;
 
 // The drag in progress, or null when nothing is being dragged. It holds:
 //  - fromKey:   the pocket the card came from, like "3-5"
 //  - ghost:     the floating copy of the card that follows the pointer
 //  - grabX/Y:   where on the card it was grabbed, so it doesn't jump
 //  - target:    the pocket currently under the card (or null)
-//  - overTrash: true while the card is over the red "remove" circle
-//  - overMove:  true while the card is over the blue "move" circle
 //  - edge:      -1 / 1 while held at the left / right edge, else 0
 let drag = null;
 
@@ -626,8 +658,6 @@ function beginDrag(pocket, x, y) {
     grabX: x - box.left,
     grabY: y - box.top,
     target: null,
-    overTrash: false,
-    overMove: false,
     edge: 0
   };
 
@@ -646,15 +676,15 @@ function moveDrag(x, y) {
   // Over the red "remove" circle or the blue "move" circle? Light it up.
   // They sit on top of the pockets, so while over one, no pocket counts
   // as the drop target.
-  drag.overTrash = isOverCircle(trash, x, y);
-  drag.overMove = !drag.overTrash && isOverCircle(moveCircle, x, y);
-  trash.classList.toggle('active', drag.overTrash);
-  moveCircle.classList.toggle('active', drag.overMove);
+  const overTrash = isOverCircle(trash, x, y);
+  const overMove = !overTrash && isOverCircle(moveCircle, x, y);
+  trash.classList.toggle('active', overTrash);
+  moveCircle.classList.toggle('active', overMove);
   // Fade the floating card so the circle shows through it.
-  drag.ghost.classList.toggle('over-trash', drag.overTrash || drag.overMove);
+  drag.ghost.classList.toggle('over-circle', overTrash || overMove);
 
   // Highlight the pocket the card would drop into.
-  const target = drag.overTrash || drag.overMove ? null : pocketAt(x, y);
+  const target = overTrash || overMove ? null : pocketAt(x, y);
   if (target !== drag.target) {
     if (drag.target) drag.target.classList.remove('drop-target');
     if (target && keyOf(target) !== drag.fromKey) target.classList.add('drop-target');
@@ -695,7 +725,7 @@ function isOverCircle(circle, x, y) {
   if (box.width === 0) return false;   // circle not showing
   const centerX = box.left + box.width / 2;
   const centerY = box.top + box.height / 2;
-  return Math.hypot(x - centerX, y - centerY) <= TRASH_REACH;
+  return Math.hypot(x - centerX, y - centerY) <= CIRCLE_REACH;
 }
 
 // Let go of the card.
@@ -901,6 +931,8 @@ showPages();
        "app": "mtg-card-binder",
        "version": 1,
        "name": "Binder 1",
+       "color": "U",
+       "pages": 10,
        "savedAt": "2026-10-13T18:30:00.000Z",
        "cards": { "1-1": { "name": "...", "set": "...", ... }, ... }
      }
@@ -965,7 +997,7 @@ fileInput.addEventListener('change', async () => {
   }
 
   // Uploading REPLACES the binder, so check first if it already has cards.
-  const current = Object.keys(loadBinder()).length;
+  const current = Object.keys(binderCards).length;
   if (current > 0 && !confirm(
     `Replace the ${current} card${current === 1 ? '' : 's'} in your binder ` +
     `with the ${count} card${count === 1 ? '' : 's'} from this file?`)) {
@@ -1098,7 +1130,6 @@ setUpFooterSignOut(() => { location.href = 'index.html'; });
 const moveCardDialog  = document.getElementById('moveCardDialog');
 const moveCardText    = document.getElementById('moveCardText');
 const moveTargets     = document.getElementById('moveTargets');
-const moveNewBinder   = document.getElementById('moveNewBinder');
 const moveNewName     = document.getElementById('moveNewName');
 const moveNewCount    = document.getElementById('moveNewCount');
 const moveToNewButton = document.getElementById('moveToNewButton');
@@ -1250,8 +1281,7 @@ moveToNewButton.addEventListener('click', async () => {
     await ensureSignedIn();
     const cards = { [pocketKey(1, 1)]: card };
     // It goes at the end of the shelf on the My Binders page.
-    const file = await createBinderFile(name,
-      { app: FILE_APP_NAME, version: 1, name, color: null, cards }, null, binders.length);
+    const file = await createBinderFile(name, cards, null, binders.length);
     binders.push({ id: file.id, name, color: null, pages: DEFAULT_PAGES });
     saveBinderList(binders);
     saveBinder(cards, file.id, { dirty: false });

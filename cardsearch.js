@@ -1,8 +1,10 @@
 /* =========================================================================
    cardsearch.js — all the code that makes cardsearch.html work: the
-   search box, set and version pickers, sharing, and Add to binder.
+   search box, the Set, Version and Language pickers, the card picture and
+   Flip button, sharing, Notes and Rules, Format Legality, and Add to binder.
    It's loaded at the bottom of cardsearch.html, after the page's HTML
-   exists, and after binder-storage.js (which it uses to save cards).
+   exists, and after binder-storage.js (saving cards into binders) and
+   google-drive.js (who's logged in, and Sign out).
    ========================================================================= */
 
 /* =====================================================================
@@ -115,7 +117,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function setTheme(theme) {
   root.setAttribute('data-theme', theme);
   themeSwitch.setAttribute('aria-checked', String(theme === 'dark'));
-  try { localStorage.setItem('theme', theme); } catch (e) { /* storage blocked: ignore */ }
+  storageSet('theme', theme);   // binder-storage.js (ignores blocked storage)
 }
 
 // Clicking the switch flips between light and dark.
@@ -888,15 +890,6 @@ function showLegalities(print) {
   legalityBox.hidden = formats.length === 0;
 }
 
-// Show the front (0) or back (1) of the current printing, in the chosen
-// language. Asking for the back of a single-sided card does nothing.
-function showFace(face) {
-  const print = state.currentPrint;
-  if (!print || (face === 1 && !isDoubleSided(print))) return;
-  state.currentFace = face;
-  showCardImage(state.shownCard || print, face);
-}
-
 /* =====================================================================
    LANGUAGES
    ===================================================================== */
@@ -977,21 +970,35 @@ function showLanguage(code) {
 // Choosing a language in the picker shows that language's card.
 languageSelect.addEventListener('change', () => showLanguage(languageSelect.value));
 
-// The Flip button switches to the other side.
-flipButton.addEventListener('click', () => showFace(state.currentFace === 0 ? 1 : 0));
-
 /* =====================================================================
    CARD PICTURE
    ===================================================================== */
 
+// Show the front (0) or back (1) of the current printing, in the chosen
+// language. Asking for the back of a single-sided card does nothing.
+function showFace(face) {
+  const print = state.currentPrint;
+  if (!print || (face === 1 && !isDoubleSided(print))) return;
+  state.currentFace = face;
+  showCardImage(state.shownCard, face);
+}
+
+// The Flip button switches to the other side.
+flipButton.addEventListener('click', () => showFace(state.currentFace === 0 ? 1 : 0));
+
 // Find the picture address for one side of a printing. Returns null when
 // Scryfall has no real picture, so we can show the card back instead.
-function imageFor(print, face) {
+// "sizes" says which picture size to use, in order of preference: the
+// card on this page uses "large" (falling back to "normal"); binder pockets
+// use "normal" (see binderImageFor).
+function imageFor(print, face, sizes = ['large', 'normal']) {
   if (print.image_status === 'missing' || print.image_status === 'placeholder') return null;
   // Single-sided cards keep their picture on the card itself;
   // double-sided cards keep one picture per side in card_faces.
   const uris = print.image_uris || (print.card_faces && print.card_faces[face].image_uris);
-  return uris ? (uris.large || uris.normal) : null;
+  if (!uris) return null;
+  const size = sizes.find((s) => uris[s]);
+  return size ? uris[size] : null;
 }
 
 // Swap in a new picture. The loading spinner shows until it arrives.
@@ -1046,7 +1053,7 @@ function shareLink() {
   link.searchParams.set('set', state.currentPrint.set);
   link.searchParams.set('number', state.currentPrint.collector_number);
   if (state.currentFace === 1) link.searchParams.set('face', 'back');
-  const lang = (state.shownCard || state.currentPrint).lang;
+  const lang = state.shownCard.lang;
   if (lang !== state.currentPrint.lang) link.searchParams.set('lang', lang);
   return link.toString();
 }
@@ -1088,10 +1095,24 @@ shareButton.addEventListener('click', async () => {
   }
 });
 
+// If the page was opened from a shared link (?set=...&number=...),
+// show that exact card. A "lang=ja" in the link is remembered, and the
+// Language picker switches to it once the languages have loaded.
+function openSharedLinkIfAny() {
+  const params = new URLSearchParams(location.search);
+  const setCode = params.get('set');
+  const number = params.get('number');
+  state.wantedLanguage = params.get('lang');
+  if (setCode && number) {
+    loadCardBySetAndNumber(setCode, number, params.get('face') === 'back' ? 1 : 0);
+  }
+}
+
 /* =====================================================================
    ADDING THE CARD TO THE BINDER
-   (uses loadBinder, saveBinder, pocketKey and firstEmptyPocket from
-   binder-storage.js, which the binder pages share)
+   (uses the binder helpers in binder-storage.js, shared with the other
+   pages: loadBinder, saveBinder, pocketKey, firstEmptyPocket, binderPages,
+   binderName and currentBinderId)
    ===================================================================== */
 
 // Which binder to add to. The binder page puts it in the address
@@ -1120,18 +1141,16 @@ const binderTarget = (() => {
   const params = new URLSearchParams(location.search);
   const page = parseInt(params.get('binderPage'), 10);
   const slot = parseInt(params.get('binderSlot'), 10);
-  // The pocket must exist in that binder (binders have their own number of pages).
-  const pages = targetBinderId ? binderPages(targetBinderId) : MAX_PAGES;
-  const valid = page >= 1 && page <= pages && slot >= 1 && slot <= POCKETS_PER_PAGE;
+  // It must be a real pocket. (The link comes from the binder page, which
+  // only links to pockets it shows, so the 150-page limit is enough here.)
+  const valid = page >= 1 && page <= MAX_PAGES && slot >= 1 && slot <= POCKETS_PER_PAGE;
   return valid ? { page, slot } : null;
 })();
 
 // A smaller picture for the binder pocket (the "normal" size is plenty
 // for a pocket and downloads faster). No picture? Use the card back.
 function binderImageFor(print, face) {
-  if (print.image_status === 'missing' || print.image_status === 'placeholder') return CARD_BACK;
-  const uris = print.image_uris || (print.card_faces && print.card_faces[face].image_uris);
-  return uris ? (uris.normal || uris.large) : CARD_BACK;
+  return imageFor(print, face, ['normal', 'large']) || CARD_BACK;
 }
 
 // Clicking "Add to binder": save the card being shown (this exact set,
@@ -1156,7 +1175,7 @@ binderButton.addEventListener('click', () => {
   // Only the side being shown counts as "the back" for double-sided cards.
   const face = isDoubleSided(print) ? state.currentFace : 0;
   // The language version being shown (its picture is in that language).
-  const shown = state.shownCard || print;
+  const shown = state.shownCard;
   cards[pocketKey(pocket.page, pocket.slot)] = {
     name: print.name,
     set: print.set,
@@ -1172,19 +1191,6 @@ binderButton.addEventListener('click', () => {
   }
   location.href = `binder.html?binder=${encodeURIComponent(targetBinderId)}&page=${pocket.page}`;
 });
-
-// If the page was opened from a shared link (?set=...&number=...),
-// show that exact card. A "lang=ja" in the link is remembered, and the
-// Language picker switches to it once the languages have loaded.
-function openSharedLinkIfAny() {
-  const params = new URLSearchParams(location.search);
-  const setCode = params.get('set');
-  const number = params.get('number');
-  state.wantedLanguage = params.get('lang');
-  if (setCode && number) {
-    loadCardBySetAndNumber(setCode, number, params.get('face') === 'back' ? 1 : 0);
-  }
-}
 
 /* =====================================================================
    STARTUP — everything that runs once when the page opens

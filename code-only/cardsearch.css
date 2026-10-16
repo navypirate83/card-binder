@@ -262,9 +262,9 @@ main {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.share-button {
+.share-button,
+.binder-button {
   position: absolute;
-  top: 33.333%;
   left: calc(100% + 12px);
   transform: translateY(-50%);
   display: grid;
@@ -272,40 +272,36 @@ main {
   width: 44px;
   height: 44px;
   padding: 0;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: 50%;
   box-shadow: var(--shadow);
   cursor: pointer;
+}
+
+.share-button {
+  top: 33.333%;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 .share-button:hover { color: var(--accent); }
 .share-button svg { width: 20px; height: 20px; }
 
 .binder-button {
-  position: absolute;
   top: 66.667%;
-  left: calc(100% + 12px);
-  transform: translateY(-50%);
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  padding: 0;
   color: var(--accent-text);
   background: var(--accent);
   border: none;
-  border-radius: 50%;
-  box-shadow: var(--shadow);
-  cursor: pointer;
-  transition: transform 0.2s ease, filter 0.2s ease;
+  transition: filter 0.2s ease;
 }
 
-.binder-button svg { width: 22px; height: 22px; }
+.binder-button svg {
+  width: 22px;
+  height: 22px;
+  transition: transform 0.25s ease;
+}
 
 .binder-button:hover { filter: brightness(1.1); }
 .binder-button:hover svg { transform: rotate(90deg); }
-.binder-button svg { transition: transform 0.25s ease; }
 
 @media (prefers-reduced-motion: reduce) {
   .binder-button:hover svg { transform: none; }
@@ -534,6 +530,10 @@ main {
   font-size: 0.9rem;
   line-height: 20px;
   transition: background-color 0.25s;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  column-gap: 16px;
 }
 
 body { padding-bottom: 43px; }
@@ -561,12 +561,6 @@ body { padding-bottom: 43px; }
   cursor: default;
 }
 
-.site-footer {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  column-gap: 16px;
-}
 .site-footer nav { grid-column: 2; }
 
 .footer-signout {

@@ -22,7 +22,7 @@ document.getElementById('cardSearchLink').href = `cardsearch.html?binder=${encod
 function setTheme(theme) {
   root.setAttribute('data-theme', theme);
   themeSwitch.setAttribute('aria-checked', String(theme === 'dark'));
-  try { localStorage.setItem('theme', theme); } catch (e) {  }
+  storageSet('theme', theme);
 }
 
 themeSwitch.addEventListener('click', () => {
@@ -50,6 +50,9 @@ function searchLinkFor(page, slot, card) {
   return `cardsearch.html?${params}`;
 }
 
+const PICTURE_PAGES_AHEAD = 2;
+const loadedPages = new Set();
+
 function fillPocket(pocket, page, slot) {
   const card = binderCards[pocketKey(page, slot)];
   const link = document.createElement('a');
@@ -59,9 +62,9 @@ function fillPocket(pocket, page, slot) {
     link.className = 'pocket-card';
     link.setAttribute('aria-label', `${card.name}, pocket ${slot}. Open in card search`);
     const img = document.createElement('img');
-    img.src = card.image;
+    if (loadedPages.has(page)) img.src = card.image;
+    else img.dataset.src = card.image;
     img.alt = '';
-    img.loading = 'eager';
     img.draggable = false;
     link.draggable = false;
     link.appendChild(img);
@@ -131,6 +134,22 @@ function showOnly(numbers) {
   binder.querySelectorAll('.binder-page').forEach((page) => {
     page.hidden = !numbers.includes(Number(page.dataset.page));
   });
+  loadPicturesNear(numbers);
+}
+
+function loadPicturesNear(numbers) {
+  const first = Math.max(1, Math.min(...numbers) - PICTURE_PAGES_AHEAD);
+  const last = Math.min(TOTAL_PAGES, Math.max(...numbers) + PICTURE_PAGES_AHEAD);
+  for (let number = first; number <= last; number++) {
+    if (loadedPages.has(number)) continue;
+    loadedPages.add(number);
+    const page = pageElement(number);
+    if (!page) continue;
+    for (const img of page.querySelectorAll('img[data-src]')) {
+      img.src = img.dataset.src;
+      delete img.dataset.src;
+    }
+  }
 }
 
 const TURN_MS = 650;
@@ -340,7 +359,7 @@ const EDGE_WAIT_MS = 550;
 
 const trash = document.getElementById('binderTrash');
 const moveCircle = document.getElementById('binderMove');
-const TRASH_REACH = 44;
+const CIRCLE_REACH = 44;
 
 let drag = null;
 
@@ -396,8 +415,6 @@ function beginDrag(pocket, x, y) {
     grabX: x - box.left,
     grabY: y - box.top,
     target: null,
-    overTrash: false,
-    overMove: false,
     edge: 0
   };
 
@@ -411,13 +428,13 @@ function moveDrag(x, y) {
   drag.ghost.style.transform =
     `translate(${x - drag.grabX}px, ${y - drag.grabY}px) rotate(3deg) scale(1.06)`;
 
-  drag.overTrash = isOverCircle(trash, x, y);
-  drag.overMove = !drag.overTrash && isOverCircle(moveCircle, x, y);
-  trash.classList.toggle('active', drag.overTrash);
-  moveCircle.classList.toggle('active', drag.overMove);
-  drag.ghost.classList.toggle('over-trash', drag.overTrash || drag.overMove);
+  const overTrash = isOverCircle(trash, x, y);
+  const overMove = !overTrash && isOverCircle(moveCircle, x, y);
+  trash.classList.toggle('active', overTrash);
+  moveCircle.classList.toggle('active', overMove);
+  drag.ghost.classList.toggle('over-circle', overTrash || overMove);
 
-  const target = drag.overTrash || drag.overMove ? null : pocketAt(x, y);
+  const target = overTrash || overMove ? null : pocketAt(x, y);
   if (target !== drag.target) {
     if (drag.target) drag.target.classList.remove('drop-target');
     if (target && keyOf(target) !== drag.fromKey) target.classList.add('drop-target');
@@ -452,7 +469,7 @@ function isOverCircle(circle, x, y) {
   if (box.width === 0) return false;
   const centerX = box.left + box.width / 2;
   const centerY = box.top + box.height / 2;
-  return Math.hypot(x - centerX, y - centerY) <= TRASH_REACH;
+  return Math.hypot(x - centerX, y - centerY) <= CIRCLE_REACH;
 }
 
 function endDrag(x, y) {
@@ -661,7 +678,7 @@ fileInput.addEventListener('change', async () => {
   }
 
   // Uploading REPLACES the binder, so check first if it already has cards.
-  const current = Object.keys(loadBinder()).length;
+  const current = Object.keys(binderCards).length;
   if (current > 0 && !confirm(
     `Replace the ${current} card${current === 1 ? '' : 's'} in your binder ` +
     `with the ${count} card${count === 1 ? '' : 's'} from this file?`)) {
@@ -794,7 +811,6 @@ setUpFooterSignOut(() => { location.href = 'index.html'; });
 const moveCardDialog  = document.getElementById('moveCardDialog');
 const moveCardText    = document.getElementById('moveCardText');
 const moveTargets     = document.getElementById('moveTargets');
-const moveNewBinder   = document.getElementById('moveNewBinder');
 const moveNewName     = document.getElementById('moveNewName');
 const moveNewCount    = document.getElementById('moveNewCount');
 const moveToNewButton = document.getElementById('moveToNewButton');
@@ -946,8 +962,7 @@ moveToNewButton.addEventListener('click', async () => {
     await ensureSignedIn();
     const cards = { [pocketKey(1, 1)]: card };
     // It goes at the end of the shelf on the My Binders page.
-    const file = await createBinderFile(name,
-      { app: FILE_APP_NAME, version: 1, name, color: null, cards }, null, binders.length);
+    const file = await createBinderFile(name, cards, null, binders.length);
     binders.push({ id: file.id, name, color: null, pages: DEFAULT_PAGES });
     saveBinderList(binders);
     saveBinder(cards, file.id, { dirty: false });

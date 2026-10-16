@@ -19,6 +19,10 @@
   --border: #d8d2c6;
   --accent: #a8492a;
   --error: #c0392b;
+  /* "Danger" red for the delete circle and "Yes, delete" (and a brighter
+     red for hovering), the same in both themes */
+  --danger: #c0392b;
+  --danger-bright: #e74c3c;
   --switch-track: #e3dccf;
   --switch-thumb: #ffffff;
 
@@ -244,10 +248,12 @@ main {
    SIGNED IN: THE SHELF OF BINDERS
    ===================================================================== */
 
-/* The signed-in area: centered across the page, starting near the top */
+/* The signed-in area: centered across the page, starting near the top.
+   It can be as wide as the window (up to 1400px on very big screens),
+   so the shelf can fit more binders across when there's room. */
 .shelf-area {
   width: 100%;
-  max-width: 640px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -260,17 +266,40 @@ main {
 }
 
 /*
-  The shelf: a grid with 3 columns (more binders just add more rows).
-  Each column is up to 150px wide, and "justify-content: center" keeps the
-  whole grid in the middle of the page. Binders fill in left to right,
-  top to bottom, so the first ones sit in the upper center.
+  The shelf: a grid that fits as many binders across as the window allows.
+  - --tile-width is each binder's width, and --gap-x / --gap-y the space
+    between them. Smaller windows and phones use smaller sizes (see the
+    @media rules just below), so the number across changes to fit.
+  - "repeat(auto-fit, …)" makes as many columns as fit across the shelf.
+    "auto-fit" also drops the empty columns when there aren't enough
+    binders to fill a row, and "justify-content: center" then centers the
+    binders that are there. So a few binders sit in the middle, and each new
+    one widens the row outward until it's full and a new row starts.
+  Binders fill in left to right, top to bottom.
 */
 .binder-shelf {
+  --tile-width: 150px;
+  --gap-x: 40px;
+  --gap-y: 32px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 150px));
+  grid-template-columns: repeat(auto-fit, var(--tile-width));
   justify-content: center;
-  gap: 32px 40px;
+  gap: var(--gap-y) var(--gap-x);
   margin-top: 28px;
+  /* Dragging binders shouldn't highlight (select) text on the shelf */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Medium windows and tablets: slightly smaller binders and gaps */
+@media (max-width: 900px) {
+  .binder-shelf { --tile-width: 130px; --gap-x: 28px; --gap-y: 28px; }
+}
+
+/* Phones: small binders and gaps, so three fit across a normal phone
+   (and two on the narrowest ones) */
+@media (max-width: 560px) {
+  .binder-shelf { --tile-width: 100px; --gap-x: 14px; --gap-y: 22px; }
 }
 
 /* A message under the shelf (e.g. "Loading your binders…") */
@@ -301,6 +330,9 @@ main {
   background: none;
   border: none;
   cursor: pointer;
+  /* On iPhones, a long press on a link normally pops up a preview; a long
+     press picks the binder up instead, so turn that preview off */
+  -webkit-touch-callout: none;
 }
 .binder-tile:disabled { cursor: progress; opacity: 0.6; }
 
@@ -368,7 +400,8 @@ main {
 }
 
 /*
-  The binder's color symbol (white, blue, black, red, green or colorless),
+  The binder's cover symbol (any symbol in MANA_COLORS: a color, two colors,
+  colorless or planeswalker),
   in the center of the cover. The left position skips the spine (15%), so
   the symbol is centered on the front of the cover; "top: 50%" with the
   "translateY(-50%)" pull-back centers it top to bottom. The glow and drop
@@ -586,7 +619,7 @@ main {
 }
 .dialog-button:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
 
-/* "Create binder" is the main action, so it's filled with the accent color */
+/* "Create binder" / "Save" is the main action, so it's filled with the accent color */
 .dialog-button.primary {
   color: #ffffff;
   background: var(--accent);
@@ -594,12 +627,9 @@ main {
 }
 .dialog-button.primary:hover { filter: brightness(1.1); }
 
-/* Phones: smaller gaps so three binders still fit across the screen */
+/* Phones: smaller cover text to suit the smaller binders (the shelf's
+   own phone sizes are with the shelf, above), and tighter symbol choices */
 @media (max-width: 560px) {
-  .binder-shelf {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 24px 16px;
-  }
   .cover-label { font-size: 0.7rem; padding: 4px; }
   .cover-plus { font-size: 2.6rem; }
   /* The symbol choices: smaller names and gaps so 5 fit across a phone */
@@ -637,6 +667,14 @@ main {
   font-size: 0.9rem;
   line-height: 20px;
   transition: background-color 0.25s;
+  /* Inside, a grid with three columns: the page links in the middle one and
+     "Sign out" in the right one, pushed to the far right edge. The two
+     outer columns ("1fr") are always equal in width, which keeps the page
+     links exactly centered on the page. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  column-gap: 16px;
 }
 
 /* Leave room at the bottom of the page for the pinned footer (43px), so
@@ -674,21 +712,10 @@ body { padding-bottom: 43px; }
 
 /* =====================================================================
    FOOTER LAYOUT AND THE "SIGN OUT" LINK
-   (the same rules are in style.css, landing.css and cardsearch.css)
+   (the same rules are in style.css and cardsearch.css)
    ===================================================================== */
 
-/*
-  The footer is a grid with three columns. The page links sit in the
-  middle one, and "Sign out" sits in the right one, pushed to the far
-  right edge. The two outer columns ("1fr") are always equal in width,
-  which keeps the page links exactly centered on the page.
-*/
-.site-footer {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  column-gap: 16px;
-}
+/* The page links go in the footer's middle column (see .site-footer) */
 .site-footer nav { grid-column: 2; }
 
 /*
@@ -741,16 +768,6 @@ body { padding-bottom: 43px; }
 /* =====================================================================
    DRAGGING BINDERS (see DRAGGING BINDERS in landing.js)
    ===================================================================== */
-
-/* Dragging shouldn't highlight (select) text on the shelf */
-.binder-shelf {
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-/* On iPhones, a long press on a link normally pops up a preview; a long
-   press now picks the binder up instead, so turn that preview off */
-.binder-tile { -webkit-touch-callout: none; }
 
 /* The binder being dragged OUT of its spot fades */
 .binder-tile.drag-source { opacity: 0.3; }
@@ -830,7 +847,7 @@ body.dragging .drop-zone { display: grid; }
    (the footer is 43px tall, plus a 16px gap), red with an X */
 .delete-zone {
   bottom: 59px;
-  background: #c0392b;
+  background: var(--danger);
 }
 
 /* A binder is over a circle: grow it and brighten it, so it's clear that
@@ -840,7 +857,7 @@ body.dragging .drop-zone { display: grid; }
   filter: brightness(1.15);
 }
 .delete-zone.active {
-  background: #e74c3c;
+  background: var(--danger-bright);
   transform: translateX(-50%) scale(1.25);
 }
 
@@ -849,7 +866,7 @@ body.dragging .drop-zone { display: grid; }
    New binder window's look)
    ===================================================================== */
 
-/* "NAME": the small heading above the name box */
+/* "NAME" / "PAGES": the small headings above the boxes */
 .field-label {
   display: block;
   margin: 14px 0 6px;
@@ -860,7 +877,7 @@ body.dragging .drop-zone { display: grid; }
   color: var(--muted);
 }
 
-/* The name box with its "5 / 14" counter on the right inside it */
+/* The name box with its "5 / 12" counter on the right inside it */
 .name-field {
   position: relative;
   margin-bottom: 16px;
@@ -891,7 +908,7 @@ body.dragging .drop-zone { display: grid; }
 }
 
 /* The Pages row: a small number box with a note beside it explaining the
-   limits ("Holds 160 cards · 3 to 50 pages"). The note wraps under the box
+   limits ("Holds 160 cards · 3 to 150 pages"). The note wraps under the box
    on a narrow phone. */
 .pages-field {
   display: flex;
@@ -931,7 +948,7 @@ body.dragging .drop-zone { display: grid; }
 /* "Yes, delete": red, since it removes something */
 .dialog-button.danger {
   color: #ffffff;
-  background: #c0392b;
-  border-color: #c0392b;
+  background: var(--danger);
+  border-color: var(--danger);
 }
-.dialog-button.danger:hover { background: #e74c3c; }
+.dialog-button.danger:hover { background: var(--danger-bright); }

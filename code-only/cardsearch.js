@@ -78,7 +78,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function setTheme(theme) {
   root.setAttribute('data-theme', theme);
   themeSwitch.setAttribute('aria-checked', String(theme === 'dark'));
-  try { localStorage.setItem('theme', theme); } catch (e) { /* storage blocked: ignore */ }
+  storageSet('theme', theme);   // binder-storage.js (ignores blocked storage)
 }
 
 // Clicking the switch flips between light and dark.
@@ -747,13 +747,6 @@ function showLegalities(print) {
   legalityBox.hidden = formats.length === 0;
 }
 
-function showFace(face) {
-  const print = state.currentPrint;
-  if (!print || (face === 1 && !isDoubleSided(print))) return;
-  state.currentFace = face;
-  showCardImage(state.shownCard || print, face);
-}
-
 const LANGUAGE_NAMES = {
   en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
   pt: 'Portuguese', ja: 'Japanese', ko: 'Korean', ru: 'Russian',
@@ -815,12 +808,21 @@ function showLanguage(code) {
 
 languageSelect.addEventListener('change', () => showLanguage(languageSelect.value));
 
+function showFace(face) {
+  const print = state.currentPrint;
+  if (!print || (face === 1 && !isDoubleSided(print))) return;
+  state.currentFace = face;
+  showCardImage(state.shownCard, face);
+}
+
 flipButton.addEventListener('click', () => showFace(state.currentFace === 0 ? 1 : 0));
 
-function imageFor(print, face) {
+function imageFor(print, face, sizes = ['large', 'normal']) {
   if (print.image_status === 'missing' || print.image_status === 'placeholder') return null;
   const uris = print.image_uris || (print.card_faces && print.card_faces[face].image_uris);
-  return uris ? (uris.large || uris.normal) : null;
+  if (!uris) return null;
+  const size = sizes.find((s) => uris[s]);
+  return size ? uris[size] : null;
 }
 
 function setPicture(url, alt) {
@@ -858,7 +860,7 @@ function shareLink() {
   link.searchParams.set('set', state.currentPrint.set);
   link.searchParams.set('number', state.currentPrint.collector_number);
   if (state.currentFace === 1) link.searchParams.set('face', 'back');
-  const lang = (state.shownCard || state.currentPrint).lang;
+  const lang = state.shownCard.lang;
   if (lang !== state.currentPrint.lang) link.searchParams.set('lang', lang);
   return link.toString();
 }
@@ -893,6 +895,16 @@ shareButton.addEventListener('click', async () => {
   }
 });
 
+function openSharedLinkIfAny() {
+  const params = new URLSearchParams(location.search);
+  const setCode = params.get('set');
+  const number = params.get('number');
+  state.wantedLanguage = params.get('lang');
+  if (setCode && number) {
+    loadCardBySetAndNumber(setCode, number, params.get('face') === 'back' ? 1 : 0);
+  }
+}
+
 const targetBinderId = currentBinderId() || storageGet(LAST_BINDER_KEY) || null;
 
 document.getElementById('myBindersItem').hidden = !LOGGED_IN;
@@ -908,15 +920,12 @@ const binderTarget = (() => {
   const params = new URLSearchParams(location.search);
   const page = parseInt(params.get('binderPage'), 10);
   const slot = parseInt(params.get('binderSlot'), 10);
-  const pages = targetBinderId ? binderPages(targetBinderId) : MAX_PAGES;
-  const valid = page >= 1 && page <= pages && slot >= 1 && slot <= POCKETS_PER_PAGE;
+  const valid = page >= 1 && page <= MAX_PAGES && slot >= 1 && slot <= POCKETS_PER_PAGE;
   return valid ? { page, slot } : null;
 })();
 
 function binderImageFor(print, face) {
-  if (print.image_status === 'missing' || print.image_status === 'placeholder') return CARD_BACK;
-  const uris = print.image_uris || (print.card_faces && print.card_faces[face].image_uris);
-  return uris ? (uris.normal || uris.large) : CARD_BACK;
+  return imageFor(print, face, ['normal', 'large']) || CARD_BACK;
 }
 
 binderButton.addEventListener('click', () => {
@@ -935,7 +944,7 @@ binderButton.addEventListener('click', () => {
   }
 
   const face = isDoubleSided(print) ? state.currentFace : 0;
-  const shown = state.shownCard || print;
+  const shown = state.shownCard;
   cards[pocketKey(pocket.page, pocket.slot)] = {
     name: print.name,
     set: print.set,
@@ -951,16 +960,6 @@ binderButton.addEventListener('click', () => {
   }
   location.href = `binder.html?binder=${encodeURIComponent(targetBinderId)}&page=${pocket.page}`;
 });
-
-function openSharedLinkIfAny() {
-  const params = new URLSearchParams(location.search);
-  const setCode = params.get('set');
-  const number = params.get('number');
-  state.wantedLanguage = params.get('lang');
-  if (setCode && number) {
-    loadCardBySetAndNumber(setCode, number, params.get('face') === 'back' ? 1 : 0);
-  }
-}
 
 themeSwitch.setAttribute('aria-checked', String(root.getAttribute('data-theme') === 'dark'));
 

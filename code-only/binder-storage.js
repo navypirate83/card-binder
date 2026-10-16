@@ -1,7 +1,7 @@
 const POCKETS_PER_PAGE = 16;
 
 const DEFAULT_PAGES = 10;
-const MAX_PAGES = 50;
+const MAX_PAGES = 150;
 
 const CARDS_KEY_PREFIX = 'binderCards:';
 const DIRTY_KEY_PREFIX = 'binderDirty:';
@@ -163,7 +163,7 @@ function clearAllBinders() {
   storageRemove(LAST_BINDER_KEY);
 }
 
-function firstEmptyPocket(cards, pages = DEFAULT_PAGES) {
+function firstEmptyPocket(cards, pages) {
   for (let page = 1; page <= pages; page++) {
     for (let slot = 1; slot <= POCKETS_PER_PAGE; slot++) {
       if (!cards[pocketKey(page, slot)]) return { page, slot };

@@ -198,10 +198,18 @@ async function getBinderFolderId() {
 async function listBinderFiles() {
   const folderId = await getBinderFolderId();
   const query = `'${folderId}' in parents and mimeType='application/json' and trashed=false`;
-  const response = await driveRequest(
-    `${DRIVE_API}/files?q=${encodeURIComponent(query)}` +
-    `&fields=files(id,name,createdTime,appProperties)&orderBy=createdTime&pageSize=100`);
-  return (await response.json()).files;
+  const files = [];
+  let pageToken = '';
+  do {
+    const response = await driveRequest(
+      `${DRIVE_API}/files?q=${encodeURIComponent(query)}` +
+      `&fields=nextPageToken,files(id,name,appProperties)&orderBy=createdTime&pageSize=1000` +
+      (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''));
+    const batch = await response.json();
+    files.push(...batch.files);
+    pageToken = batch.nextPageToken || '';
+  } while (pageToken);
+  return files;
 }
 
 async function readBinderFile(fileId) {
@@ -217,9 +225,10 @@ async function writeBinderFile(fileId, data) {
   });
 }
 
-async function createBinderFile(name, data, color = null, order = null) {
+async function createBinderFile(name, cards = {}, color = null, order = null) {
   const folderId = await getBinderFolderId();
   const boundary = `binder-${Date.now()}`;
+  const data = { app: FILE_APP_NAME, version: 1, name, color, pages: DEFAULT_PAGES, cards };
   const details = { name: `${name}.json`, mimeType: 'application/json', parents: [folderId] };
   const labels = {};
   if (color) labels.color = color;
@@ -232,7 +241,7 @@ async function createBinderFile(name, data, color = null, order = null) {
     `${JSON.stringify(data, null, 2)}\r\n` +
     `--${boundary}--`;
   const response = await driveRequest(
-    `${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,name,createdTime`, {
+    `${DRIVE_UPLOAD_API}/files?uploadType=multipart&fields=id,name`, {
       method: 'POST',
       headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
       body

@@ -18,13 +18,15 @@ const POCKETS_PER_PAGE = 16;
 // How many pages a binder has. Each binder has its own number of pages
 // (changed in the Binder properties window on the My Binders page):
 //  - DEFAULT_PAGES: what a new binder starts with
-//  - MAX_PAGES:     the most a binder can have (50 pages = 800 cards). It's
-//                   a "safe" limit: the binder page builds every pocket at
-//                   once, and much bigger binders would make it slow.
+//  - MAX_PAGES:     the most a binder can have (150 pages = 2,400 cards).
+//                   It's a "safe" limit: the binder page builds every
+//                   pocket when it opens (and loads card pictures only near
+//                   the page being looked at), and much bigger binders
+//                   would make opening it slow.
 // A binder can't have fewer pages than it needs for its cards (see
 // minPagesFor).
 const DEFAULT_PAGES = 10;
-const MAX_PAGES = 50;
+const MAX_PAGES = 150;
 
 // The names things are saved under in localStorage:
 //  - binderCards:<id>  one binder's cards (<id> is its Google Drive file id)
@@ -82,7 +84,7 @@ const MANA_COLORS = [
 ].map((color) => ({ ...color, symbol: color.symbol || `${SYMBOL_URL}${color.code}.svg` }));
 
 // Find a color by its code ("U" → the Blue entry), or null if the code
-// isn't one of the six (including no color at all).
+// isn't in MANA_COLORS (including no color at all).
 function manaColor(code) {
   return MANA_COLORS.find((c) => c.code === code) || null;
 }
@@ -146,7 +148,7 @@ function markBinderSaved(id, stamp) {
   if (binderDirtyStamp(id) === stamp) storageRemove(DIRTY_KEY_PREFIX + id);
 }
 
-// The list of the user's binders, as last seen: [{ id, name }, ...].
+// The list of the user's binders, as last seen: [{ id, name, color, pages }, ...].
 function loadBinderList() {
   try { return JSON.parse(storageGet(BINDER_LIST_KEY)) || []; } catch (e) { return []; }
 }
@@ -169,14 +171,14 @@ function nextBinderName() {
   return `Binder ${number}`;
 }
 
-// A binder's number of pages from that list (10 if it doesn't say).
+// A binder's number of pages from that list (DEFAULT_PAGES if it doesn't say).
 function binderPages(id) {
   const found = loadBinderList().find((b) => b.id === id);
   return found ? cleanPageCount(found.pages) : DEFAULT_PAGES;
 }
 
 // Turn any page count (a number, or text from a Drive label) into a safe
-// whole number from 1 to MAX_PAGES. Anything unreadable becomes 10.
+// whole number from 1 to MAX_PAGES. Anything unreadable becomes DEFAULT_PAGES (10).
 function cleanPageCount(pages) {
   const number = Math.round(Number(pages));
   if (!Number.isFinite(number) || number < 1) return DEFAULT_PAGES;
@@ -254,7 +256,7 @@ function clearAllBinders() {
 // Find the first empty pocket, going page by page, pocket by pocket, in a
 // binder with this many pages. Returns { page, slot }, or null if every
 // pocket already holds a card.
-function firstEmptyPocket(cards, pages = DEFAULT_PAGES) {
+function firstEmptyPocket(cards, pages) {
   for (let page = 1; page <= pages; page++) {
     for (let slot = 1; slot <= POCKETS_PER_PAGE; slot++) {
       if (!cards[pocketKey(page, slot)]) return { page, slot };
@@ -277,7 +279,7 @@ function isValidCard(card) {
 }
 
 // Keep only the valid cards in pockets that can exist (like "3-5", on any
-// page up to the 50-page limit; the binder's own page count is checked
+// page up to the 150-page limit; the binder's own page count is checked
 // where it's known). Returns { cards, skipped } where "skipped" counts what
 // was thrown away.
 function cleanCards(incoming) {
