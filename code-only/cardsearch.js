@@ -21,6 +21,8 @@ const cardImage     = document.getElementById('cardImage');
 const shareButton   = document.getElementById('shareButton');
 const shareToast    = document.getElementById('shareToast');
 const binderButton  = document.getElementById('binderButton');
+const binderMenu    = document.getElementById('binderMenu');
+const binderMenuList = document.getElementById('binderMenuList');
 const flipButton    = document.getElementById('flipButton');
 const cardInfo      = document.getElementById('cardInfo');
 const setButton     = document.getElementById('setButton');
@@ -511,6 +513,7 @@ function resetCardDetails() {
   flipButton.hidden = true;
   shareButton.hidden = true;
   binderButton.hidden = true;
+  closeBinderMenu(false);
   cardInfo.innerHTML = '';
   rulingsBox.hidden = true;
   rulingsBody.innerHTML = '';
@@ -928,24 +931,148 @@ function binderImageFor(print, face) {
   return imageFor(print, face, ['normal', 'large']) || CARD_BACK;
 }
 
+const OPENED_FROM_BINDER = Boolean(currentBinderId());
+
+if (!OPENED_FROM_BINDER) {
+  binderButton.setAttribute('aria-haspopup', 'true');
+  binderButton.setAttribute('aria-controls', 'binderMenu');
+  binderButton.setAttribute('aria-expanded', 'false');
+  binderButton.title = 'Add to a binder…';
+}
+
 binderButton.addEventListener('click', () => {
+  if (!state.currentPrint || !LOGGED_IN) return;
+  if (OPENED_FROM_BINDER) {
+    addCardToBinder(targetBinderId, binderTarget);
+  } else if (binderMenu.hidden) {
+    openBinderMenu();
+  } else {
+    closeBinderMenu(true);
+  }
+});
+
+function openBinderMenu() {
+  const binders = loadBinderList();
+  binderMenuList.replaceChildren();
+  for (const binder of binders) {
+    const count = Object.keys(loadBinder(binder.id)).length;
+    const full = count >= binderPages(binder.id) * POCKETS_PER_PAGE;
+
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'binder-menu-item';
+    row.disabled = full;
+    row.dataset.id = binder.id;
+
+    const dot = document.createElement('span');
+    dot.className = `binder-menu-dot cover-${cleanCover(binder.cover)}`;
+    const name = document.createElement('span');
+    name.className = 'binder-menu-name';
+    name.textContent = binder.name;
+    const detail = document.createElement('span');
+    detail.className = 'binder-menu-count';
+    detail.textContent = full ? 'Full' : `${count} ${count === 1 ? 'card' : 'cards'}`;
+
+    row.append(dot, name, detail);
+    row.addEventListener('click', () => addCardToBinder(binder.id, null));
+    binderMenuList.appendChild(row);
+  }
+
+  const newRow = document.createElement('button');
+  newRow.type = 'button';
+  newRow.className = 'binder-menu-item binder-menu-new';
+  const plusDot = document.createElement('span');
+  plusDot.className = 'binder-menu-dot binder-menu-plus';
+  plusDot.textContent = '+';
+  plusDot.setAttribute('aria-hidden', 'true');
+  const newName = document.createElement('span');
+  newName.className = 'binder-menu-name';
+  newName.textContent = 'New binder';
+  newRow.append(plusDot, newName);
+  newRow.addEventListener('click', addCardToNewBinder);
+  binderMenuList.appendChild(newRow);
+
+  binderMenu.hidden = false;
+  binderButton.setAttribute('aria-expanded', 'true');
+  const first = binderMenuList.querySelector('.binder-menu-item:not(:disabled)');
+  if (first) first.focus();
+}
+
+function closeBinderMenu(returnFocus) {
+  if (binderMenu.hidden) return;
+  binderMenu.hidden = true;
+  binderButton.setAttribute('aria-expanded', 'false');
+  if (returnFocus) binderButton.focus();
+}
+
+binderMenu.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeBinderMenu(true);
+});
+
+binderMenu.addEventListener('keydown', (event) => {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+  event.preventDefault();
+  const rows = [...binderMenuList.querySelectorAll('.binder-menu-item:not(:disabled)')];
+  if (rows.length === 0) return;
+  const here = rows.indexOf(document.activeElement);
+  const step = event.key === 'ArrowDown' ? 1 : -1;
+  rows[(here + step + rows.length) % rows.length].focus();
+});
+
+document.addEventListener('click', (event) => {
+  if (binderMenu.hidden) return;
+  if (binderMenu.contains(event.target) || binderButton.contains(event.target)) return;
+  closeBinderMenu(false);
+});
+
+async function addCardToBinder(binderId, pocket) {
   const print = state.currentPrint;
-  if (!print || !LOGGED_IN) return;
-  if (!targetBinderId) {
+  if (!print) return;
+  if (!binderId) {
     setHint('Open one of your binders first (My Binders, at the bottom of the page).', true);
     return;
   }
 
-  const cards = loadBinder(targetBinderId);
-  const pocket = binderTarget || firstEmptyPocket(cards, binderPages(targetBinderId));
+  if (!OPENED_FROM_BINDER) {
+    const rows = binderMenuList.querySelectorAll('.binder-menu-item');
+    rows.forEach((row) => { row.disabled = true; });
+    setHint('Getting your binder from Google Drive…');
+    try {
+      await syncBinder(binderId);
+    } catch (err) {
+      if (storageGet(CARDS_KEY_PREFIX + binderId) === null) {
+        setHint(err.signedOut
+          ? 'Sign in again on My Binders (at the bottom of the page), then try again.'
+          : `Couldn't get your binder from Google Drive. ${err.message}`, true);
+        closeBinderMenu(true);
+        return;
+      }
+    }
+  }
+
+  const cards = loadBinder(binderId);
+  pocket = pocket || firstEmptyPocket(cards, binderPages(binderId));
   if (!pocket) {
-    setHint('Your binder is full. Click a card in the binder to replace it.', true);
+    setHint('That binder is full. Click a card in the binder to replace it.', true);
+    closeBinderMenu(true);
     return;
   }
 
+  cards[pocketKey(pocket.page, pocket.slot)] = shownCardEntry();
+
+  if (!saveBinder(cards, binderId)) {
+    setHint('Your browser blocked saving, so the card could not be added.', true);
+    closeBinderMenu(true);
+    return;
+  }
+  location.href = `binder.html?binder=${encodeURIComponent(binderId)}&page=${pocket.page}`;
+}
+
+function shownCardEntry() {
+  const print = state.currentPrint;
   const face = isDoubleSided(print) ? state.currentFace : 0;
   const shown = state.shownCard;
-  cards[pocketKey(pocket.page, pocket.slot)] = {
+  return {
     name: print.name,
     set: print.set,
     number: print.collector_number,
@@ -953,13 +1080,28 @@ binderButton.addEventListener('click', () => {
     lang: shown.lang !== print.lang ? shown.lang : undefined,
     image: binderImageFor(shown, face)
   };
+}
 
-  if (!saveBinder(cards, targetBinderId)) {
-    setHint('Your browser blocked saving, so the card could not be added.', true);
-    return;
+async function addCardToNewBinder() {
+  if (!state.currentPrint) return;
+  const binders = loadBinderList();
+  const name = nextBinderName();
+  binderMenuList.querySelectorAll('.binder-menu-item').forEach((row) => { row.disabled = true; });
+  setHint('Making the new binder…');
+  try {
+    const cards = { [pocketKey(1, 1)]: shownCardEntry() };
+    const file = await createBinderFile(name, cards, null, binders.length);
+    binders.push({ id: file.id, name, color: null, cover: DEFAULT_COVER, pages: DEFAULT_PAGES });
+    saveBinderList(binders);
+    saveBinder(cards, file.id, { dirty: false });
+    location.href = `binder.html?binder=${encodeURIComponent(file.id)}&page=1`;
+  } catch (err) {
+    setHint(err.signedOut
+      ? 'Sign in again on My Binders (at the bottom of the page), then try again.'
+      : `Couldn't make the new binder in Google Drive. ${err.message}`, true);
+    closeBinderMenu(true);
   }
-  location.href = `binder.html?binder=${encodeURIComponent(targetBinderId)}&page=${pocket.page}`;
-});
+}
 
 themeSwitch.setAttribute('aria-checked', String(root.getAttribute('data-theme') === 'dark'));
 

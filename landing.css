@@ -26,8 +26,10 @@
   --switch-track: #e3dccf;
   --switch-thumb: #ffffff;
 
-  /* Binder colors: a black cover with a slightly lighter edge. A real
-     binder is black in any light, so these only change a little. */
+  /* The black cover's colors (black is the default cover color; the
+     other cover colors are set further down): a black cover with a
+     slightly lighter edge. A real binder is black in any light, so these
+     only change a little. */
   --binder-cover: #121214;
   --binder-cover-edge: #2a2a2e;
   --binder-shadow: 0 4px 8px rgba(40, 30, 20, 0.20), 0 14px 28px rgba(40, 30, 20, 0.25);
@@ -337,26 +339,46 @@ main {
 .binder-tile:disabled { cursor: progress; opacity: 0.6; }
 
 /*
-  The closed binder, seen from the front: a black cover a little taller
-  than wide, with square corners on the spine side (left) and rounded
-  corners on the opening side (right), like a real binder.
-  A faint diagonal gradient gives the cover a soft sheen.
+  The closed binder, seen from the front: a cover a little taller than
+  wide, with square corners on the spine side (left) and rounded corners
+  on the opening side (right), like a real binder.
+  A faint diagonal gradient (light, then the base color, then dark) gives
+  the cover a soft sheen. The three shades come from the cover's color
+  class (".cover-black", ".cover-gold" etc., in binder-dialog.css, which
+  the card finder page shares).
 */
 .closed-binder {
   position: relative;
   display: block;                 /* a full-size box wherever it's placed (it's a <span>) */
   width: 100%;
   aspect-ratio: 10 / 12;
-  border: 1px solid var(--binder-cover-edge);
+  border: 1px solid var(--cover-edge);
   border-radius: 4px 12px 12px 4px;
-  background: linear-gradient(135deg, #2a2a30 0%, var(--binder-cover) 55%, #050506 100%);
+  background: linear-gradient(135deg, var(--cover-light) 0%, var(--cover-base) 55%, var(--cover-dark) 100%);
   box-shadow: var(--binder-shadow);
   transition: transform 0.3s cubic-bezier(0.34, 1.6, 0.64, 1), box-shadow 0.3s ease;
+}
+
+/* Label colors: light text on the dark covers (the starting values here),
+   dark text on the light covers (white, gold and light gray) */
+.closed-binder {
+  --cover-text: #e9e5dc;
+  --cover-label-line: rgba(255, 255, 255, 0.16);
+  --cover-label-fill: rgba(255, 255, 255, 0.05);
+}
+.closed-binder.cover-white,
+.closed-binder.cover-gold,
+.closed-binder.cover-gray {
+  --cover-text: #24211c;
+  --cover-label-line: rgba(0, 0, 0, 0.28);
+  --cover-label-fill: rgba(255, 255, 255, 0.35);
 }
 
 /*
   The spine along the left edge: a darker strip with a soft groove where
   the cover bends. "::before" draws it without needing more HTML.
+  It's made of see-through blacks and whites laid over the cover, so it
+  works on every cover color: a darker band of whatever color the cover is.
 */
 .closed-binder::before {
   content: "";
@@ -366,7 +388,7 @@ main {
   left: 0;
   width: 15%;
   border-radius: 4px 0 0 4px;
-  background: linear-gradient(to right, #030304, #1b1b20 45%, #08080a 80%, #24242a);
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.25) 45%, rgba(0, 0, 0, 0.55) 80%, rgba(255, 255, 255, 0.08));
   box-shadow: inset -2px 0 3px rgba(0, 0, 0, 0.6);
 }
 
@@ -385,10 +407,10 @@ main {
   font-size: 0.8rem;
   font-weight: 600;
   text-align: center;
-  color: #e9e5dc;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--cover-text);
+  border: 1px solid var(--cover-label-line);
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--cover-label-fill);
   /* The name always stays on ONE line ("nowrap"). Names are limited to
      12 characters, which fit on phones too. If a name of extra-wide
      letters (like "WWW") doesn't fit, landing.js shrinks its text a little
@@ -464,178 +486,12 @@ main {
   .binder-tile:focus-visible .closed-binder { transform: none; }
 }
 
-/* =====================================================================
-   THE "NEW BINDER" WINDOW
-   ===================================================================== */
-
-/*
-  The pop-up window itself. A <dialog> opened with showModal() is centered
-  on the screen by the browser; these rules give it the page's colors,
-  rounded corners and a shadow. "max-width: calc(100vw - 32px)" keeps a
-  16px gap at each side on a phone.
-*/
-.new-binder-dialog {
-  width: 460px;
-  max-width: calc(100vw - 32px);
-  padding: 24px;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
-}
-
-/* The dimmed layer the browser puts over the page behind the window */
-.new-binder-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.55);
-}
-
-/* "New binder" and the line under it */
-.dialog-title {
-  margin: 0 0 6px;
-  font-size: 1.25rem;
-}
-.dialog-text {
-  padding: 0;
-  margin-bottom: 16px;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-/* The group of choices: no box around it (a fieldset normally has one) */
-.color-choices {
-  margin: 0;
-  padding: 0;
-  border: none;
-}
-
-/*
-  The choices are in two groups (see buildColorChoices in landing.js):
-  - the single symbols (None, the five colors, Colorless, Planeswalker):
-    two rows of 4
-  - the ten two-color symbols, under a "Two colors" heading: two rows of 5
-*/
-.color-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
-.color-grid.two-colors { grid-template-columns: repeat(5, 1fr); }
-
-/* The small "Two colors" heading between the two groups */
-.choice-group-title {
-  margin: 14px 0 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-/*
-  One choice: the symbol with its name under it, in a rounded box.
-  The real radio button is hidden visually (but still works for the
-  keyboard and screen readers); the box shows which one is picked.
-*/
-.color-choice {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 2px 8px;
-  border: 2px solid transparent;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s;
-}
-.color-choice:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
-
-/* The radio button itself: invisible, laid over the whole box so it's
-   still clicked and focused like normal */
-.color-choice input {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-/* The picked choice: an accent-colored border and a light accent tint.
-   ":has(input:checked)" means "a choice whose radio button is ticked". */
-.color-choice:has(input:checked) {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-/* A keyboard user moving through the choices sees an outline */
-.color-choice:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* The symbol picture (or the empty "None" circle) */
-.choice-symbol {
-  width: 36px;
-  height: 36px;
-}
-
-/* "None": an empty circle with a slash through it, drawn with a border
-   and a gradient line, so it reads as "no symbol" */
-.no-symbol {
-  display: block;
-  border: 2px solid var(--muted);
-  border-radius: 50%;
-  background: linear-gradient(135deg, transparent 46%, var(--muted) 46%, var(--muted) 54%, transparent 54%);
-}
-
-/* The color's name under its symbol */
-.choice-name {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-/* The Cancel / Create binder buttons along the bottom, on the right.
-   "row-reverse" shows them in the opposite order to the HTML, so Cancel
-   is on the left even though "Create binder" comes first in the code. */
-.dialog-buttons {
-  display: flex;
-  flex-direction: row-reverse;
-  gap: 10px;
-  margin-top: 22px;
-}
-
-/* Both buttons: rounded, the page's font */
-.dialog-button {
-  padding: 9px 18px;
-  font: inherit;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  cursor: pointer;
-}
-.dialog-button:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
-
-/* "Create binder" / "Save" is the main action, so it's filled with the accent color */
-.dialog-button.primary {
-  color: #ffffff;
-  background: var(--accent);
-  border-color: var(--accent);
-}
-.dialog-button.primary:hover { filter: brightness(1.1); }
-
 /* Phones: smaller cover text to suit the smaller binders (the shelf's
-   own phone sizes are with the shelf, above), and tighter symbol choices */
+   own phone sizes are with the shelf, above). (The windows' phone sizes
+   are in binder-dialog.css.) */
 @media (max-width: 560px) {
   .cover-label { font-size: 0.7rem; padding: 4px; }
   .cover-plus { font-size: 2.6rem; }
-  /* The symbol choices: smaller names and gaps so 5 fit across a phone */
-  .color-grid { gap: 4px; }
-  .choice-name { font-size: 0.65rem; }
-  .choice-symbol { width: 30px; height: 30px; }
 }
 
 /* On wider screens, give the title a little more size (like the other pages) */
@@ -862,82 +718,9 @@ body.dragging .drop-zone { display: grid; }
 }
 
 /* =====================================================================
-   THE PROPERTIES AND DELETE WINDOWS (extra pieces; they share the
-   New binder window's look)
+   THE DELETE WINDOW (extra pieces; the windows' shared look is in
+   binder-dialog.css)
    ===================================================================== */
-
-/* "NAME" / "PAGES": the small headings above the boxes */
-.field-label {
-  display: block;
-  margin: 14px 0 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-/* The name box with its "5 / 12" counter on the right inside it */
-.name-field {
-  position: relative;
-  margin-bottom: 16px;
-}
-.name-input {
-  width: 100%;
-  padding: 10px 64px 10px 12px;   /* room on the right for the counter */
-  font: inherit;
-  font-size: 1rem;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.name-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
-}
-.name-count {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.8rem;
-  color: var(--muted);
-  pointer-events: none;
-}
-
-/* The Pages row: a small number box with a note beside it explaining the
-   limits ("Holds 160 cards · 3 to 150 pages"). The note wraps under the box
-   on a narrow phone. */
-.pages-field {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
-  margin-bottom: 16px;
-}
-.pages-input {
-  width: 90px;
-  padding: 9px 10px;
-  font: inherit;
-  font-size: 1rem;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.pages-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
-}
-.pages-note {
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-/* The note turns red while the number is outside the allowed range */
-.pages-note.error { color: var(--error); }
 
 /* The Delete window's buttons show in normal order (No, then Yes) */
 .dialog-buttons.normal-order {

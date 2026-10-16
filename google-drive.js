@@ -316,20 +316,22 @@ async function writeBinderFile(fileId, data) {
 // Make a new binder file in the folder, holding these cards (often none).
 // Returns { id, name }.
 // "color" is the cover's symbol code from MANA_COLORS (e.g. "U", "PW" or
-// "WU") or null for none, and "order" is its spot on the shelf (0 = first).
-// Both are stored as labels on the file's details, so the shelf can show
+// "WU") or null for none, "order" is its spot on the shelf (0 = first), and
+// "cover" is the cover's color from COVER_COLORS (black unless chosen).
+// They're stored as labels on the file's details, so the shelf can show
 // them without opening every binder. New binders have DEFAULT_PAGES pages.
 // A new file needs two things sent together: its details (name, folder)
 // and its contents. Drive takes both in one "multipart" message: two parts
 // separated by a "boundary" line that appears nowhere else.
-async function createBinderFile(name, cards = {}, color = null, order = null) {
+async function createBinderFile(name, cards = {}, color = null, order = null, cover = DEFAULT_COVER) {
   const folderId = await getBinderFolderId();
   const boundary = `binder-${Date.now()}`;
   // The file's contents: the same layout binderFileData (binder-storage.js) writes.
-  const data = { app: FILE_APP_NAME, version: 1, name, color, pages: DEFAULT_PAGES, cards };
+  const data = { app: FILE_APP_NAME, version: 1, name, color, cover, pages: DEFAULT_PAGES, cards };
   const details = { name: `${name}.json`, mimeType: 'application/json', parents: [folderId] };
   const labels = {};
   if (color) labels.color = color;
+  if (cover !== DEFAULT_COVER) labels.cover = cover;   // black is the default: no label needed
   if (order !== null) labels.order = String(order);
   if (Object.keys(labels).length) details.appProperties = labels;
   const body =
@@ -347,18 +349,21 @@ async function createBinderFile(name, cards = {}, color = null, order = null) {
   return response.json();
 }
 
-// Change a binder file's details: its name, cover color, number of pages
-// and/or its place in the shelf's order. Only the details passed in change:
+// Change a binder file's details: its name, cover symbol, cover color,
+// number of pages and/or its place in the shelf's order. Only the details
+// passed in change:
 //   { name: "Modern Decks" }      renames it (the file becomes "Modern Decks.json")
 //   { color: "R" } / { color: null } sets or removes the cover symbol
+//   { cover: "gold" }             the cover's color
 //   { pages: 20 }                 how many pages the binder has
 //   { order: 3 }                  its spot on the shelf (0 = first)
-// The color, pages and order are small labels ("appProperties") on the file.
-async function updateBinderDetails(fileId, { name, color, pages, order } = {}) {
+// All but the name are small labels ("appProperties") on the file.
+async function updateBinderDetails(fileId, { name, color, cover, pages, order } = {}) {
   const details = {};
   const labels = {};
   if (name !== undefined) details.name = `${name}.json`;
   if (color !== undefined) labels.color = color;            // null removes the label
+  if (cover !== undefined) labels.cover = cover;
   if (pages !== undefined) labels.pages = String(pages);    // labels are always text
   if (order !== undefined) labels.order = String(order);
   if (Object.keys(labels).length) details.appProperties = labels;

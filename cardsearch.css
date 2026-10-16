@@ -432,6 +432,131 @@ main {
 }
 
 /*
+  The "Add to which binder?" menu: a small floating box just under the "+"
+  button (half the button's 44px height + an 8px gap = 30px below its
+  middle), lined up with the button's left edge. It sits above everything
+  else on the page ("z-index") and scrolls if there are lots of binders.
+*/
+.binder-menu {
+  position: absolute;
+  top: calc(66.667% + 30px);
+  left: calc(100% + 12px);
+  z-index: 5;
+  width: 230px;
+  padding: 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* The "hidden" attribute must win over "display" rules, so the menu
+   really disappears when closed */
+.binder-menu[hidden] { display: none; }
+
+/* The menu's small heading */
+.binder-menu-title {
+  margin: 2px 6px 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The list of binders: at most about 7 rows tall, then it scrolls */
+.binder-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 290px;
+  overflow-y: auto;
+}
+
+/* One binder in the list: color dot, name, then card count on the right */
+.binder-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.binder-menu-item:hover,
+.binder-menu-item:focus-visible {
+  background: var(--surface-hover);
+  outline: none;
+}
+
+/* A full binder can't be picked, so it's faded out */
+.binder-menu-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.binder-menu-item:disabled:hover { background: transparent; }
+
+/* The binder's name takes the spare room; a long name ends in "…" */
+.binder-menu-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* How many cards it has (or "Full"), small and grey */
+.binder-menu-count {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* The little round dot in the binder's cover color: a tiny version of the
+   cover, using the shades its "cover-<color>" class sets (the cover color
+   classes are in binder-dialog.css). The thin edge keeps white and light
+   gray dots visible on a white menu. */
+.binder-menu-dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid var(--cover-edge, rgba(0, 0, 0, 0.25));
+  background: linear-gradient(135deg, var(--cover-light) 0%, var(--cover-base) 55%, var(--cover-dark) 100%);
+}
+
+/*
+  The "New binder" row's dot: a bold white "+" in a circle, the same size
+  as the color dots. The circle is filled with the accent color (like the
+  "+" button) so the white "+" shows in both light and dark mode.
+  The "+" is drawn, not typed: a typed "+" sits low in its letter space,
+  so it never looks centered. Instead, two small white bars (an 8px-wide
+  flat one and an 8px-tall thin one, each 2px thick) are painted at the
+  exact center ("center / width height") over the accent fill.
+*/
+.binder-menu-plus {
+  border-color: var(--accent);
+  background:
+    linear-gradient(#ffffff, #ffffff) center / 8px 2px no-repeat,
+    linear-gradient(#ffffff, #ffffff) center / 2px 8px no-repeat,
+    var(--accent);
+}
+
+/* A thin line above "New binder" sets it apart from the binders (unless
+   it's the only row) */
+.binder-menu-item + .binder-menu-new {
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 6px 6px;
+}
+
+/*
   Little "Link copied!" message that appears just under the Share button
   (half the button's 44px height + an 8px gap = 30px below its middle).
 */
@@ -462,6 +587,12 @@ main {
     z-index: 2;
   }
   .share-button { background: color-mix(in srgb, var(--surface) 85%, transparent); }
+  /* The binder menu opens under the "+", lined up with the card's right
+     edge so it stays on screen */
+  .binder-menu {
+    left: auto;
+    right: 10px;
+  }
 }
 
 /* "Flip card" button for double-sided cards */

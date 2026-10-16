@@ -23,18 +23,15 @@ const footerSignOut  = document.getElementById('footerSignOut');
 const myBindersItem  = document.getElementById('myBindersItem');   // the footer's "My Binders" link
 const binderShelf    = document.getElementById('binderShelf');
 const shelfMessage   = document.getElementById('shelfMessage');
-const newBinderDialog = document.getElementById('newBinderDialog');
-const colorChoices    = document.getElementById('colorChoices');
 const editBinderDialog   = document.getElementById('editBinderDialog');
 const editColorChoices   = document.getElementById('editColorChoices');
+const editCoverChoices   = document.getElementById('editCoverChoices');   // Properties: cover colors
 const binderNameInput    = document.getElementById('binderNameInput');
 const nameCount          = document.getElementById('nameCount');
 const deleteBinderDialog = document.getElementById('deleteBinderDialog');
 const deleteBinderText   = document.getElementById('deleteBinderText');
 const editDropZone       = document.getElementById('editDropZone');
 const deleteDropZone     = document.getElementById('deleteDropZone');
-const newBinderName      = document.getElementById('newBinderName');      // New binder: name box
-const newNameCount       = document.getElementById('newNameCount');       // ...and its "5 / 12" counter
 const binderPagesInput   = document.getElementById('binderPagesInput');   // Properties: Pages box
 const pagesNote          = document.getElementById('pagesNote');          // ...and the note beside it
 
@@ -126,8 +123,9 @@ async function showSignedIn() {
     accountName.textContent = `Signed in as ${user.displayName || user.emailAddress}`;
 
     // The binder files in their Drive (oldest first), with each one's cover
-    // color, number of pages and shelf position (labels stored on the file;
-    // an unknown color counts as none, and no page count means DEFAULT_PAGES).
+    // symbol, cover color, number of pages and shelf position (labels stored
+    // on the file; an unknown symbol counts as none, no cover color means
+    // black, and no page count means DEFAULT_PAGES).
     const files = await listBinderFiles();
     let binders = files.map((file) => {
       const labels = file.appProperties || {};
@@ -135,6 +133,7 @@ async function showSignedIn() {
         id: file.id,
         name: nameFromFileName(file.name),
         color: manaColor(labels.color) ? labels.color : null,
+        cover: cleanCover(labels.cover),
         pages: cleanPageCount(labels.pages),
         order: labels.order !== undefined ? Number(labels.order) : null
       };
@@ -144,7 +143,7 @@ async function showSignedIn() {
     // position (made before positions were saved) go after the others, oldest
     // first. ("sort" keeps the oldest-first order among equal positions.)
     binders.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-    binders = binders.map(({ id, name, color, pages }) => ({ id, name, color, pages }));
+    binders = binders.map(({ id, name, color, cover, pages }) => ({ id, name, color, cover, pages }));
 
     // First time signing in? If this browser still has cards from before
     // binders were saved in Drive, move them into a first binder.
@@ -179,7 +178,7 @@ async function moveOldCardsIntoFirstBinder() {
   const file = await createBinderFile(name, cards);
   saveBinder(cards, file.id, { dirty: false });
   storageRemove(OLD_SINGLE_BINDER_KEY);
-  return [{ id: file.id, name, color: null, pages: DEFAULT_PAGES }];
+  return [{ id: file.id, name, color: null, cover: DEFAULT_COVER, pages: DEFAULT_PAGES }];
 }
 
 // Draw the shelf: a closed binder for each binder (a link that opens it),
@@ -196,8 +195,9 @@ function renderShelf(binders) {
     tile.draggable = false;         // we handle dragging ourselves (see below)
     const color = manaColor(binder.color);
     const colorWords = color ? `, ${color.name}` : '';
-    tile.setAttribute('aria-label', `Open ${binder.name}${colorWords}, ${cardCountText(count)}`);
-    tile.append(closedBinder(binder.name, binder.color), caption(cardCountText(count)));
+    const coverWords = `, ${coverColorName(binder.cover)} cover`;
+    tile.setAttribute('aria-label', `Open ${binder.name}${coverWords}${colorWords}, ${cardCountText(count)}`);
+    tile.append(closedBinder(binder.name, binder.color, binder.cover), caption(cardCountText(count)));
     binderShelf.appendChild(tile);
   }
 
@@ -213,7 +213,9 @@ function renderShelf(binders) {
   plus.textContent = '+';
   cover.appendChild(plus);
   addTile.append(cover, caption('New binder'));
-  addTile.addEventListener('click', openNewBinderDialog);
+  // Clicking it opens the New binder window (binder-dialog.js); "Create
+  // binder" there runs makeNewBinder below.
+  addTile.addEventListener('click', () => openNewBinderDialog(makeNewBinder));
   binderShelf.appendChild(addTile);
 
   fitCoverLabels();
@@ -256,10 +258,12 @@ window.addEventListener('resize', fitCoverLabels);
 
 // Build the picture of a closed binder. With a name, it gets a label
 // window on the cover showing the name. With a color code ("U" etc.), that
-// color's symbol goes in the center of the cover.
-function closedBinder(name, colorCode) {
+// color's symbol goes in the center of the cover. "coverCode" is the cover's
+// color from COVER_COLORS ("gold" etc.); landing.css colors the binder from
+// its "cover-gold" class. Left out (like the "+" binder), it's black.
+function closedBinder(name, colorCode, coverCode) {
   const cover = document.createElement('span');
-  cover.className = 'closed-binder';
+  cover.className = `closed-binder cover-${cleanCover(coverCode)}`;
   if (name) {
     const label = document.createElement('span');
     label.className = 'cover-label';
@@ -278,6 +282,11 @@ function closedBinder(name, colorCode) {
   return cover;
 }
 
+// The readable name of a cover color code, e.g. "gray" -> "Light gray".
+function coverColorName(code) {
+  return COVER_COLORS.find((c) => c.code === cleanCover(code)).name;
+}
+
 // Build the small caption under a binder.
 function caption(text) {
   const span = document.createElement('span');
@@ -287,104 +296,14 @@ function caption(text) {
 }
 
 /* =====================================================================
-   THE "NEW BINDER" WINDOW (choose a color symbol, or none)
+   MAKING A NEW BINDER
+   (the New binder window itself is in binder-dialog.js, shared with the
+   card finder page)
    ===================================================================== */
 
-// Fill a window's symbol choices, in two parts:
-//  - "None", the five colors, Colorless and Planeswalker (two rows of 4)
-//  - under a small "Two colors" heading, the ten two-color symbols (two rows of 5)
-// Each choice is a radio button (only one in the whole set can be picked)
-// wrapped in a label, so clicking the symbol or its name picks it.
-// "container" is where they go; "groupName" ties one window's radio
-// buttons together (the New binder and Properties windows each have a set).
-function buildColorChoices(container, groupName) {
-  const singleRow = document.createElement('div');
-  singleRow.className = 'color-grid';
-  const twoHeading = document.createElement('p');
-  twoHeading.className = 'choice-group-title';
-  twoHeading.textContent = 'Two colors';
-  const twoRows = document.createElement('div');
-  twoRows.className = 'color-grid two-colors';
-  container.append(singleRow, twoHeading, twoRows);
-
-  const options = [{ code: '', name: 'None', short: 'None', group: 'single', symbol: null }, ...MANA_COLORS];
-  for (const option of options) {
-    const choice = document.createElement('label');
-    choice.className = 'color-choice';
-    choice.title = option.name;      // hovering shows the full name, e.g. "White and Blue"
-
-    const radio = document.createElement('input');
-    radio.type = 'radio';
-    radio.name = groupName;
-    radio.value = option.code;
-    // Screen readers say the full name and the short one ("White and Blue, Azorius").
-    if (option.short !== option.name) radio.setAttribute('aria-label', `${option.name}, ${option.short}`);
-
-    // The picture: the color's symbol, or an empty circle for "None".
-    let picture;
-    if (option.symbol) {
-      picture = document.createElement('img');
-      picture.src = option.symbol;
-      picture.alt = '';                 // the name below says which color
-    } else {
-      picture = document.createElement('span');
-      picture.className = 'no-symbol';
-    }
-    picture.classList.add('choice-symbol');
-
-    const label = document.createElement('span');
-    label.className = 'choice-name';
-    label.textContent = option.short;
-
-    choice.append(radio, picture, label);
-    (option.group === 'two' ? twoRows : singleRow).appendChild(choice);
-  }
-}
-buildColorChoices(colorChoices, 'binderColor');
-
-// Keep a name box's "5 / 12" counter up to date (characters used of the
-// box's limit). Used by both the New binder and Binder properties windows.
-function showNameCount(input, counter) {
-  counter.textContent = `${input.value.length} / ${input.maxLength}`;
-}
-newBinderName.addEventListener('input', () => showNameCount(newBinderName, newNameCount));
-
-// Clicking the "+" binder: open the window with the next free name filled
-// in (and selected, so typing replaces it) and "None" picked.
-function openNewBinderDialog() {
-  newBinderName.value = nextBinderName();
-  showNameCount(newBinderName, newNameCount);
-  newBinderDialog.querySelector('input[value=""]').checked = true;
-  // Forget which button closed the window last time, so closing it with
-  // Escape now can't count as an old "Create binder".
-  newBinderDialog.returnValue = '';
-  newBinderDialog.showModal();
-  newBinderName.select();
-}
-
-// When the window closes, see which button closed it. "Create binder" makes
-// the binder with the typed name and the picked color ("" means none);
-// Cancel does nothing. (The name box is "required", so it can't be blank;
-// spaces-only still falls back to the default name.)
-newBinderDialog.addEventListener('close', () => {
-  if (newBinderDialog.returnValue !== 'create') return;
-  const picked = newBinderDialog.querySelector('input[name="binderColor"]:checked');
-  const name = newBinderName.value.trim().slice(0, newBinderName.maxLength) || nextBinderName();
-  makeNewBinder(name, picked && picked.value ? picked.value : null);
-});
-
-// Clicking on the dimmed area outside a window closes it, like Cancel / No.
-// (A click on the dimmed area counts as a click on the <dialog> itself.)
-function closeOnBackdropClick(dialog) {
-  dialog.addEventListener('click', (event) => {
-    if (event.target === dialog) dialog.close('cancel');
-  });
-}
-closeOnBackdropClick(newBinderDialog);
-
-// Make a new, empty binder file in Google Drive with the chosen name and
-// cover color, and add it to the end of the shelf.
-async function makeNewBinder(name, color) {
+// Make a new, empty binder file in Google Drive with the chosen name,
+// cover symbol and cover color, and add it to the end of the shelf.
+async function makeNewBinder(name, color, cover) {
   const binders = loadBinderList();
   const addTile = document.getElementById('addBinderTile');
   if (addTile) addTile.disabled = true;
@@ -393,9 +312,9 @@ async function makeNewBinder(name, color) {
   try {
     // The new binder goes at the end of the shelf (its position = how many
     // binders came before it).
-    const file = await createBinderFile(name, {}, color, binders.length);
+    const file = await createBinderFile(name, {}, color, binders.length, cover);
     saveBinder({}, file.id, { dirty: false });
-    binders.push({ id: file.id, name, color, pages: DEFAULT_PAGES });
+    binders.push({ id: file.id, name, color, cover, pages: DEFAULT_PAGES });
     saveBinderList(binders);
     renderShelf(binders);
     setShelfMessage('');
@@ -687,13 +606,15 @@ let editingId = null;
 
 // Fill the window's symbol choices (the same set as the New binder window).
 buildColorChoices(editColorChoices, 'editColor');
+// ...and its cover color choices.
+buildCoverChoices(editCoverChoices, 'editCover');
 
 // Keep the "5 / 12" counter next to the name box up to date
 // (showNameCount is shared with the New binder window).
 binderNameInput.addEventListener('input', () => showNameCount(binderNameInput, nameCount));
 
 // Open the window for a binder, filled in with its current name, number of
-// pages and symbol. The Pages box can't go below the fewest pages its
+// pages, symbol and cover color. The Pages box can't go below the fewest pages its
 // cards need, or above the MAX_PAGES (150) limit.
 function openEditDialog(id) {
   const binder = loadBinderList().find((b) => b.id === id);
@@ -707,6 +628,7 @@ function openEditDialog(id) {
   binderPagesInput.value = binderPages(id);
   updatePagesNote();
   editBinderDialog.querySelector(`input[name="editColor"][value="${binder.color || ''}"]`).checked = true;
+  editBinderDialog.querySelector(`input[name="editCover"][value="${cleanCover(binder.cover)}"]`).checked = true;
   // Forget which button closed the window last time, so closing it with
   // Escape now can't count as an old "Save".
   editBinderDialog.returnValue = '';
@@ -725,6 +647,8 @@ editBinderDialog.addEventListener('close', async () => {
   if (!name) return;
   const picked = editBinderDialog.querySelector('input[name="editColor"]:checked');
   const color = picked && picked.value ? picked.value : null;
+  const pickedCover = editBinderDialog.querySelector('input[name="editCover"]:checked');
+  const cover = cleanCover(pickedCover && pickedCover.value);
   // The page count, kept within the limits just in case (cleanPageCount
   // caps it at MAX_PAGES; this keeps it at or above the smallest allowed).
   let pages = Math.max(cleanPageCount(binderPagesInput.value), Number(binderPagesInput.min));
@@ -736,6 +660,7 @@ editBinderDialog.addEventListener('close', async () => {
   if (!binder) return;
   binder.name = name;
   binder.color = color;
+  binder.cover = cover;
   binder.pages = pages;
   saveBinderList(binders);
   renderShelf(binders);
@@ -763,7 +688,7 @@ editBinderDialog.addEventListener('close', async () => {
         await syncBinder(id);      // ...and save them to Drive
       }
     }
-    await updateBinderDetails(id, { name, color, pages });
+    await updateBinderDetails(id, { name, color, cover, pages });
     setShelfMessage('');
   } catch (err) {
     if (err.signedOut) { showSignedOut(err.message); return; }

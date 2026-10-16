@@ -31,7 +31,8 @@ const MAX_PAGES = 150;
 // The names things are saved under in localStorage:
 //  - binderCards:<id>  one binder's cards (<id> is its Google Drive file id)
 //  - binderDirty:<id>  set when that binder has changes not yet in Drive
-//  - binderList        the list of the user's binders: [{ id, name, color, pages }, ...]
+//  - binderList        the list of the user's binders: [{ id, name, color, cover, pages }, ...]
+//                      ("color" is the cover's symbol, "cover" the cover's color)
 //  - lastBinderId      the binder opened most recently
 const CARDS_KEY_PREFIX = 'binderCards:';
 const DIRTY_KEY_PREFIX = 'binderDirty:';
@@ -82,6 +83,26 @@ const MANA_COLORS = [
   { code: 'GU', name: 'Green and Blue',  short: 'Simic',    group: 'two' }
 // Each symbol's picture is Scryfall's, unless the entry names its own.
 ].map((color) => ({ ...color, symbol: color.symbol || `${SYMBOL_URL}${color.code}.svg` }));
+
+// The colors a binder's cover can be (on the My Binders shelf). Each has a
+// code (saved with the binder) and a name. The actual shades are in
+// landing.css (the "cover-<code>" classes). Black is what every binder
+// starts as.
+const COVER_COLORS = [
+  { code: 'white', name: 'White' },
+  { code: 'blue',  name: 'Blue' },
+  { code: 'black', name: 'Black' },
+  { code: 'red',   name: 'Red' },
+  { code: 'green', name: 'Green' },
+  { code: 'gold',  name: 'Gold' },
+  { code: 'gray',  name: 'Light gray' }
+];
+const DEFAULT_COVER = 'black';
+
+// A cover color's code if it's one of the list above, otherwise black.
+function cleanCover(code) {
+  return COVER_COLORS.some((c) => c.code === code) ? code : DEFAULT_COVER;
+}
 
 // Find a color by its code ("U" → the Blue entry), or null if the code
 // isn't in MANA_COLORS (including no color at all).
@@ -148,7 +169,7 @@ function markBinderSaved(id, stamp) {
   if (binderDirtyStamp(id) === stamp) storageRemove(DIRTY_KEY_PREFIX + id);
 }
 
-// The list of the user's binders, as last seen: [{ id, name, color, pages }, ...].
+// The list of the user's binders, as last seen: [{ id, name, color, cover, pages }, ...].
 function loadBinderList() {
   try { return JSON.parse(storageGet(BINDER_LIST_KEY)) || []; } catch (e) { return []; }
 }
@@ -213,6 +234,12 @@ function fitCardsIntoPages(cards, pages) {
   return kept;
 }
 
+// A binder's cover color from that list ("black" if it doesn't say).
+function binderCover(id) {
+  const found = loadBinderList().find((b) => b.id === id);
+  return cleanCover(found && found.cover);
+}
+
 // A binder's cover color code from that list ("U" etc.), or null for none.
 function binderColor(id) {
   const found = loadBinderList().find((b) => b.id === id);
@@ -221,13 +248,14 @@ function binderColor(id) {
 
 // The whole binder as it's written to a Google Drive file (or a .JSON
 // download): a little label saying what it is, its name, its cover
-// color, its number of pages, and its cards.
+// symbol ("color") and cover color, its number of pages, and its cards.
 function binderFileData(id) {
   return {
     app: FILE_APP_NAME,
     version: 1,
     name: binderName(id),
     color: binderColor(id),
+    cover: binderCover(id),
     pages: binderPages(id),
     savedAt: new Date().toISOString(),
     cards: loadBinder(id)

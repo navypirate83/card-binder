@@ -32,8 +32,11 @@
     })();
   </script>
 
-  <!-- All the page's styles live in cardsearch.css -->
+  <!-- The page's own styles live in cardsearch.css -->
   <link rel="stylesheet" href="cardsearch.css">
+  <!-- The look of the binder windows (pop-ups) and the cover colors,
+       shared by the My Binders and MTG Card Finder pages -->
+  <link rel="stylesheet" href="binder-dialog.css">
 </head>
 <body>
   <!-- Top bar: the app title (left) and the light/dark switch (upper right) -->
@@ -122,6 +125,17 @@
         </svg>
       </button>
 
+      <!--
+        "Add to which binder?" menu. When this page was opened on its own
+        (from the footer link, not from a binder's pocket), clicking the "+"
+        opens this list of the user's binders under the button; picking one
+        adds the card to that binder. cardsearch.js fills in the binders.
+      -->
+      <div id="binderMenu" class="binder-menu" hidden>
+        <p class="binder-menu-title" id="binderMenuTitle">Add to which binder?</p>
+        <div id="binderMenuList" class="binder-menu-list" role="group" aria-labelledby="binderMenuTitle"></div>
+      </div>
+
       <!-- Confirmation message after the link is copied -->
       <div id="shareToast" class="share-toast" role="status" hidden></div>
     </div>
@@ -170,6 +184,54 @@
   </main>
 
   <!--
+    The "New binder" window: opens when "New binder" is picked in the
+    "Add to which binder?" menu. It's the same window as on the My Binders
+    page (index.html: keep the two alike).
+    A <dialog> is a pop-up window built into the browser: it sits on top of
+    the page and dims everything behind it. Inside is a form with a name
+    box, the cover symbol choices (Magic's symbols, or None) and the
+    cover color choices.
+    binder-dialog.js adds the choices and runs the window; cardsearch.js
+    makes the binder, with the card in it, when "Create binder" is clicked.
+    method="dialog" means the form's buttons just close the window.
+  -->
+  <dialog id="newBinderDialog" class="new-binder-dialog" aria-labelledby="newBinderTitle">
+    <form method="dialog">
+      <h2 id="newBinderTitle" class="dialog-title">New binder</h2>
+      <!--
+        The new binder's name. binder-dialog.js fills in the next free name
+        ("Binder 3") to start, selected so typing replaces it. maxlength
+        is the same 12-character limit as the Binder properties window,
+        so the name always fits on one line of the cover's label.
+      -->
+      <label class="field-label" for="newBinderName">Name</label>
+      <div class="name-field">
+        <input id="newBinderName" class="name-input" type="text"
+               maxlength="12" autocomplete="off" spellcheck="false" required>
+        <!-- "5 / 12": how many characters are used of the limit -->
+        <span id="newNameCount" class="name-count" aria-live="polite"></span>
+      </div>
+      <fieldset class="color-choices">
+        <legend class="dialog-text">Choose a color symbol for the cover, or none.</legend>
+        <div id="colorChoices" class="color-groups"></div>
+      </fieldset>
+      <!-- The binder's cover color: seven round swatches (black to start).
+           binder-dialog.js adds the swatches. -->
+      <fieldset class="color-choices">
+        <legend class="dialog-text">Cover color</legend>
+        <div id="coverChoices" class="cover-grid"></div>
+      </fieldset>
+      <!-- "Create binder" comes first so pressing Enter creates the binder;
+           binder-dialog.css shows the buttons in reverse order (Cancel on the left) -->
+      <div class="dialog-buttons">
+        <button value="create" class="dialog-button primary" type="submit">Create binder</button>
+        <!-- formnovalidate: Cancel works even if the name box is empty -->
+        <button value="cancel" class="dialog-button" type="submit" formnovalidate>Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!--
     Footer: links to every page in the project (the same list is on the
     other pages). aria-current marks the page you're on: screen readers
     say "current page", and cardsearch.css shows it as plain bold text.
@@ -200,6 +262,10 @@
   <!-- Shared code for Google sign-in and Google Drive (here: checking who's
        logged in, and the Sign out link) -->
   <script src="google-drive.js"></script>
+
+  <!-- Shared code for the New binder window (and pieces the binder
+       windows share) -->
+  <script src="binder-dialog.js"></script>
 
   <!-- All the page's code lives in cardsearch.js -->
   <script src="cardsearch.js"></script>

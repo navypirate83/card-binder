@@ -46,6 +46,8 @@ const cardImage     = document.getElementById('cardImage');
 const shareButton   = document.getElementById('shareButton');
 const shareToast    = document.getElementById('shareToast');
 const binderButton  = document.getElementById('binderButton');
+const binderMenu    = document.getElementById('binderMenu');       // "Add to which binder?" list
+const binderMenuList = document.getElementById('binderMenuList');  // ...and the binders inside it
 const flipButton    = document.getElementById('flipButton');
 const cardInfo      = document.getElementById('cardInfo');
 const setButton     = document.getElementById('setButton');
@@ -591,6 +593,7 @@ function resetCardDetails() {
   flipButton.hidden = true;
   shareButton.hidden = true;
   binderButton.hidden = true;
+  closeBinderMenu(false);
   cardInfo.innerHTML = '';
   rulingsBox.hidden = true;
   rulingsBody.innerHTML = '';
@@ -1115,9 +1118,11 @@ function openSharedLinkIfAny() {
    binderName and currentBinderId)
    ===================================================================== */
 
-// Which binder to add to. The binder page puts it in the address
-// ("?binder=1AbC..."). If this page was opened on its own, use the binder
-// opened most recently. (null = no binder opened yet in this browser.)
+// Which binder this page came from. The binder page puts it in the address
+// ("?binder=1AbC..."), and "+" adds cards to it. If this page was opened
+// on its own, it's the binder opened most recently, used only for the
+// footer's link back to it ("+" asks which binder instead). (null = no
+// binder opened yet in this browser.)
 const targetBinderId = currentBinderId() || storageGet(LAST_BINDER_KEY) || null;
 
 // When logged in (LOGGED_IN, near the top of this file), show the
@@ -1153,30 +1158,192 @@ function binderImageFor(print, face) {
   return imageFor(print, face, ['normal', 'large']) || CARD_BACK;
 }
 
-// Clicking "Add to binder": save the card being shown (this exact set,
-// version and side) into the pocket, then go back to the binder, opened
-// to the page with that pocket so the new card is in view. (The binder
-// page then saves the change to Google Drive.)
+// Was this page opened from a binder (its pocket's "+", or a card in it)?
+// Then the address names the binder ("?binder=1AbC..."), and "+" adds the
+// card straight to it. Opened on its own (e.g. from the footer link), "+"
+// asks which binder instead (see the binder menu below).
+const OPENED_FROM_BINDER = Boolean(currentBinderId());
+
+// When "+" opens the menu, tell screen readers it opens a list (and which
+// one), and change its tooltip to say so.
+if (!OPENED_FROM_BINDER) {
+  binderButton.setAttribute('aria-haspopup', 'true');
+  binderButton.setAttribute('aria-controls', 'binderMenu');
+  binderButton.setAttribute('aria-expanded', 'false');
+  binderButton.title = 'Add to a binder…';
+}
+
+// Clicking "Add to binder" ("+"): when opened from a binder, add the card
+// to it; otherwise open (or close) the "Add to which binder?" menu.
 binderButton.addEventListener('click', () => {
+  if (!state.currentPrint || !LOGGED_IN) return;   // (the button is hidden when not logged in anyway)
+  if (OPENED_FROM_BINDER) {
+    addCardToBinder(targetBinderId, binderTarget);
+  } else if (binderMenu.hidden) {
+    openBinderMenu();
+  } else {
+    closeBinderMenu(true);
+  }
+});
+
+/* ----- The "Add to which binder?" menu ----- */
+
+// Open the menu under the "+" with one row per binder (in shelf order):
+// a dot in the binder's cover color, its name, and how many cards it has.
+// A full binder is shown but can't be picked. The last row, "New binder"
+// (with a "+" in its dot), makes a new binder for the card.
+function openBinderMenu() {
+  const binders = loadBinderList();
+  binderMenuList.replaceChildren();
+  for (const binder of binders) {
+    const count = Object.keys(loadBinder(binder.id)).length;
+    const full = count >= binderPages(binder.id) * POCKETS_PER_PAGE;
+
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'binder-menu-item';
+    row.disabled = full;
+    row.dataset.id = binder.id;
+
+    const dot = document.createElement('span');
+    dot.className = `binder-menu-dot cover-${cleanCover(binder.cover)}`;
+    const name = document.createElement('span');
+    name.className = 'binder-menu-name';
+    name.textContent = binder.name;
+    const detail = document.createElement('span');
+    detail.className = 'binder-menu-count';
+    detail.textContent = full ? 'Full' : `${count} ${count === 1 ? 'card' : 'cards'}`;
+
+    row.append(dot, name, detail);
+    row.addEventListener('click', () => addCardToBinder(binder.id, null));
+    binderMenuList.appendChild(row);
+  }
+
+  // The "New binder" row at the bottom. Its dot is a white, bold "+" in a
+  // circle (drawn by cardsearch.css), the same size as the color dots.
+  // Picking it opens the New binder window (binder-dialog.js), and
+  // "Create binder" there runs addCardToNewBinder.
+  const newRow = document.createElement('button');
+  newRow.type = 'button';
+  newRow.className = 'binder-menu-item binder-menu-new';
+  const plusDot = document.createElement('span');
+  plusDot.className = 'binder-menu-dot binder-menu-plus';
+  const newName = document.createElement('span');
+  newName.className = 'binder-menu-name';
+  newName.textContent = 'New binder';
+  newRow.append(plusDot, newName);
+  newRow.addEventListener('click', () => {
+    closeBinderMenu(false);
+    openNewBinderDialog(addCardToNewBinder);
+  });
+  binderMenuList.appendChild(newRow);
+
+  binderMenu.hidden = false;
+  binderButton.setAttribute('aria-expanded', 'true');
+  // Put the keyboard on the first binder that can be picked.
+  const first = binderMenuList.querySelector('.binder-menu-item:not(:disabled)');
+  if (first) first.focus();
+}
+
+// Close the menu. "returnFocus" puts the keyboard back on the "+" button
+// (after Escape or clicking "+" again), so keyboard users don't get lost.
+function closeBinderMenu(returnFocus) {
+  if (binderMenu.hidden) return;
+  binderMenu.hidden = true;
+  binderButton.setAttribute('aria-expanded', 'false');
+  if (returnFocus) binderButton.focus();
+}
+
+// Escape closes the menu.
+binderMenu.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeBinderMenu(true);
+});
+
+// Up and down arrow keys move between the binders in the menu (skipping
+// full ones), wrapping around at the ends.
+binderMenu.addEventListener('keydown', (event) => {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+  event.preventDefault();
+  const rows = [...binderMenuList.querySelectorAll('.binder-menu-item:not(:disabled)')];
+  if (rows.length === 0) return;
+  const here = rows.indexOf(document.activeElement);
+  const step = event.key === 'ArrowDown' ? 1 : -1;
+  rows[(here + step + rows.length) % rows.length].focus();
+});
+
+// Clicking anywhere outside the menu (and outside the "+") closes it.
+document.addEventListener('click', (event) => {
+  if (binderMenu.hidden) return;
+  if (binderMenu.contains(event.target) || binderButton.contains(event.target)) return;
+  closeBinderMenu(false);
+});
+
+/* ----- Putting the card into a binder ----- */
+
+// Save the card being shown (this exact set, version, side and language)
+// into a binder, then go to that binder, opened to the page with the new
+// card. "pocket" is the pocket to fill ({ page, slot }), or null for the
+// binder's first empty pocket. (The binder page then saves the change to
+// Google Drive.)
+async function addCardToBinder(binderId, pocket) {
   const print = state.currentPrint;
-  if (!print || !LOGGED_IN) return;   // (the button is hidden when not logged in anyway)
-  if (!targetBinderId) {
+  if (!print) return;
+  if (!binderId) {
     setHint('Open one of your binders first (My Binders, at the bottom of the page).', true);
     return;
   }
 
-  const cards = loadBinder(targetBinderId);
-  const pocket = binderTarget || firstEmptyPocket(cards, binderPages(targetBinderId));
+  // A binder picked from the menu may have been changed on another
+  // computer (or never opened in this browser), so get its latest cards
+  // from Google Drive first: otherwise the card could land in a pocket
+  // that's already taken, and saving could wipe out cards. (Coming from
+  // the binder page, it's already up to date.)
+  if (!OPENED_FROM_BINDER) {
+    const rows = binderMenuList.querySelectorAll('.binder-menu-item');
+    rows.forEach((row) => { row.disabled = true; });
+    setHint('Getting your binder from Google Drive…');
+    try {
+      await syncBinder(binderId);   // google-drive.js
+    } catch (err) {
+      // Signed out (or offline): only go ahead if this browser already has
+      // a copy of the binder to add to.
+      if (storageGet(CARDS_KEY_PREFIX + binderId) === null) {
+        setHint(err.signedOut
+          ? 'Sign in again on My Binders (at the bottom of the page), then try again.'
+          : `Couldn't get your binder from Google Drive. ${err.message}`, true);
+        closeBinderMenu(true);
+        return;
+      }
+    }
+  }
+
+  const cards = loadBinder(binderId);
+  pocket = pocket || firstEmptyPocket(cards, binderPages(binderId));
   if (!pocket) {
-    setHint('Your binder is full. Click a card in the binder to replace it.', true);
+    setHint('That binder is full. Click a card in the binder to replace it.', true);
+    closeBinderMenu(true);
     return;
   }
 
+  cards[pocketKey(pocket.page, pocket.slot)] = shownCardEntry();
+
+  if (!saveBinder(cards, binderId)) {
+    setHint('Your browser blocked saving, so the card could not be added.', true);
+    closeBinderMenu(true);
+    return;
+  }
+  location.href = `binder.html?binder=${encodeURIComponent(binderId)}&page=${pocket.page}`;
+}
+
+// The card being shown, as a binder saves it: this exact set, version,
+// side and language, plus the picture to show in the pocket.
+function shownCardEntry() {
+  const print = state.currentPrint;
   // Only the side being shown counts as "the back" for double-sided cards.
   const face = isDoubleSided(print) ? state.currentFace : 0;
   // The language version being shown (its picture is in that language).
   const shown = state.shownCard;
-  cards[pocketKey(pocket.page, pocket.slot)] = {
+  return {
     name: print.name,
     set: print.set,
     number: print.collector_number,
@@ -1184,13 +1351,31 @@ binderButton.addEventListener('click', () => {
     lang: shown.lang !== print.lang ? shown.lang : undefined,   // only saved if switched
     image: binderImageFor(shown, face)
   };
+}
 
-  if (!saveBinder(cards, targetBinderId)) {
-    setHint('Your browser blocked saving, so the card could not be added.', true);
-    return;
+// "Create binder" in the New binder window: make the new binder in Google
+// Drive with the chosen name, cover symbol ("color", or null for none) and
+// cover color, with the card in its first pocket, then open it. It goes at
+// the end of the shelf on My Binders.
+async function addCardToNewBinder(name, color, cover) {
+  if (!state.currentPrint) return;
+  const binders = loadBinderList();
+  binderButton.disabled = true;   // no second click while it's being made
+  setHint('Making the new binder…');
+  try {
+    const cards = { [pocketKey(1, 1)]: shownCardEntry() };
+    const file = await createBinderFile(name, cards, color, binders.length, cover);   // google-drive.js
+    binders.push({ id: file.id, name, color, cover, pages: DEFAULT_PAGES });
+    saveBinderList(binders);
+    saveBinder(cards, file.id, { dirty: false });   // Drive already has these cards
+    location.href = `binder.html?binder=${encodeURIComponent(file.id)}&page=1`;
+  } catch (err) {
+    setHint(err.signedOut
+      ? 'Sign in again on My Binders (at the bottom of the page), then try again.'
+      : `Couldn't make the new binder in Google Drive. ${err.message}`, true);
+    binderButton.disabled = false;
   }
-  location.href = `binder.html?binder=${encodeURIComponent(targetBinderId)}&page=${pocket.page}`;
-});
+}
 
 /* =====================================================================
    STARTUP — everything that runs once when the page opens

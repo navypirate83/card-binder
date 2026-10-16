@@ -34,6 +34,21 @@ const MANA_COLORS = [
   { code: 'GU', name: 'Green and Blue',  short: 'Simic',    group: 'two' }
 ].map((color) => ({ ...color, symbol: color.symbol || `${SYMBOL_URL}${color.code}.svg` }));
 
+const COVER_COLORS = [
+  { code: 'white', name: 'White' },
+  { code: 'blue',  name: 'Blue' },
+  { code: 'black', name: 'Black' },
+  { code: 'red',   name: 'Red' },
+  { code: 'green', name: 'Green' },
+  { code: 'gold',  name: 'Gold' },
+  { code: 'gray',  name: 'Light gray' }
+];
+const DEFAULT_COVER = 'black';
+
+function cleanCover(code) {
+  return COVER_COLORS.some((c) => c.code === code) ? code : DEFAULT_COVER;
+}
+
 function manaColor(code) {
   return MANA_COLORS.find((c) => c.code === code) || null;
 }
@@ -130,6 +145,11 @@ function fitCardsIntoPages(cards, pages) {
   return kept;
 }
 
+function binderCover(id) {
+  const found = loadBinderList().find((b) => b.id === id);
+  return cleanCover(found && found.cover);
+}
+
 function binderColor(id) {
   const found = loadBinderList().find((b) => b.id === id);
   return found && manaColor(found.color) ? found.color : null;
@@ -141,6 +161,7 @@ function binderFileData(id) {
     version: 1,
     name: binderName(id),
     color: binderColor(id),
+    cover: binderCover(id),
     pages: binderPages(id),
     savedAt: new Date().toISOString(),
     cards: loadBinder(id)

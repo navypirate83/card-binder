@@ -11,8 +11,10 @@ const binderShelf    = document.getElementById('binderShelf');
 const shelfMessage   = document.getElementById('shelfMessage');
 const newBinderDialog = document.getElementById('newBinderDialog');
 const colorChoices    = document.getElementById('colorChoices');
+const coverChoices    = document.getElementById('coverChoices');
 const editBinderDialog   = document.getElementById('editBinderDialog');
 const editColorChoices   = document.getElementById('editColorChoices');
+const editCoverChoices   = document.getElementById('editCoverChoices');
 const binderNameInput    = document.getElementById('binderNameInput');
 const nameCount          = document.getElementById('nameCount');
 const deleteBinderDialog = document.getElementById('deleteBinderDialog');
@@ -86,13 +88,14 @@ async function showSignedIn() {
         id: file.id,
         name: nameFromFileName(file.name),
         color: manaColor(labels.color) ? labels.color : null,
+        cover: cleanCover(labels.cover),
         pages: cleanPageCount(labels.pages),
         order: labels.order !== undefined ? Number(labels.order) : null
       };
     });
 
     binders.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-    binders = binders.map(({ id, name, color, pages }) => ({ id, name, color, pages }));
+    binders = binders.map(({ id, name, color, cover, pages }) => ({ id, name, color, cover, pages }));
 
     if (binders.length === 0) binders = await moveOldCardsIntoFirstBinder();
 
@@ -120,7 +123,7 @@ async function moveOldCardsIntoFirstBinder() {
   const file = await createBinderFile(name, cards);
   saveBinder(cards, file.id, { dirty: false });
   storageRemove(OLD_SINGLE_BINDER_KEY);
-  return [{ id: file.id, name, color: null, pages: DEFAULT_PAGES }];
+  return [{ id: file.id, name, color: null, cover: DEFAULT_COVER, pages: DEFAULT_PAGES }];
 }
 
 function renderShelf(binders) {
@@ -135,8 +138,9 @@ function renderShelf(binders) {
     tile.draggable = false;
     const color = manaColor(binder.color);
     const colorWords = color ? `, ${color.name}` : '';
-    tile.setAttribute('aria-label', `Open ${binder.name}${colorWords}, ${cardCountText(count)}`);
-    tile.append(closedBinder(binder.name, binder.color), caption(cardCountText(count)));
+    const coverWords = `, ${coverColorName(binder.cover)} cover`;
+    tile.setAttribute('aria-label', `Open ${binder.name}${coverWords}${colorWords}, ${cardCountText(count)}`);
+    tile.append(closedBinder(binder.name, binder.color, binder.cover), caption(cardCountText(count)));
     binderShelf.appendChild(tile);
   }
 
@@ -181,9 +185,9 @@ function nameTooWide(label) {
 
 window.addEventListener('resize', fitCoverLabels);
 
-function closedBinder(name, colorCode) {
+function closedBinder(name, colorCode, coverCode) {
   const cover = document.createElement('span');
-  cover.className = 'closed-binder';
+  cover.className = `closed-binder cover-${cleanCover(coverCode)}`;
   if (name) {
     const label = document.createElement('span');
     label.className = 'cover-label';
@@ -200,6 +204,10 @@ function closedBinder(name, colorCode) {
     cover.appendChild(symbol);
   }
   return cover;
+}
+
+function coverColorName(code) {
+  return COVER_COLORS.find((c) => c.code === cleanCover(code)).name;
 }
 
 function caption(text) {
@@ -252,6 +260,30 @@ function buildColorChoices(container, groupName) {
 }
 buildColorChoices(colorChoices, 'binderColor');
 
+function buildCoverChoices(container, groupName) {
+  for (const option of COVER_COLORS) {
+    const choice = document.createElement('label');
+    choice.className = 'color-choice';
+    choice.title = option.name;
+
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = groupName;
+    radio.value = option.code;
+
+    const swatch = document.createElement('span');
+    swatch.className = `cover-swatch cover-${option.code}`;
+
+    const label = document.createElement('span');
+    label.className = 'choice-name';
+    label.textContent = option.name;
+
+    choice.append(radio, swatch, label);
+    container.appendChild(choice);
+  }
+}
+buildCoverChoices(coverChoices, 'binderCover');
+
 function showNameCount(input, counter) {
   counter.textContent = `${input.value.length} / ${input.maxLength}`;
 }
@@ -260,7 +292,8 @@ newBinderName.addEventListener('input', () => showNameCount(newBinderName, newNa
 function openNewBinderDialog() {
   newBinderName.value = nextBinderName();
   showNameCount(newBinderName, newNameCount);
-  newBinderDialog.querySelector('input[value=""]').checked = true;
+  newBinderDialog.querySelector('input[name="binderColor"][value=""]').checked = true;
+  newBinderDialog.querySelector(`input[name="binderCover"][value="${DEFAULT_COVER}"]`).checked = true;
   newBinderDialog.returnValue = '';
   newBinderDialog.showModal();
   newBinderName.select();
@@ -269,8 +302,9 @@ function openNewBinderDialog() {
 newBinderDialog.addEventListener('close', () => {
   if (newBinderDialog.returnValue !== 'create') return;
   const picked = newBinderDialog.querySelector('input[name="binderColor"]:checked');
+  const pickedCover = newBinderDialog.querySelector('input[name="binderCover"]:checked');
   const name = newBinderName.value.trim().slice(0, newBinderName.maxLength) || nextBinderName();
-  makeNewBinder(name, picked && picked.value ? picked.value : null);
+  makeNewBinder(name, picked && picked.value ? picked.value : null, cleanCover(pickedCover && pickedCover.value));
 });
 
 function closeOnBackdropClick(dialog) {
@@ -280,16 +314,16 @@ function closeOnBackdropClick(dialog) {
 }
 closeOnBackdropClick(newBinderDialog);
 
-async function makeNewBinder(name, color) {
+async function makeNewBinder(name, color, cover) {
   const binders = loadBinderList();
   const addTile = document.getElementById('addBinderTile');
   if (addTile) addTile.disabled = true;
   setShelfMessage('Making a new binder…');
 
   try {
-    const file = await createBinderFile(name, {}, color, binders.length);
+    const file = await createBinderFile(name, {}, color, binders.length, cover);
     saveBinder({}, file.id, { dirty: false });
-    binders.push({ id: file.id, name, color, pages: DEFAULT_PAGES });
+    binders.push({ id: file.id, name, color, cover, pages: DEFAULT_PAGES });
     saveBinderList(binders);
     renderShelf(binders);
     setShelfMessage('');
@@ -511,6 +545,7 @@ binderPagesInput.addEventListener('input', updatePagesNote);
 let editingId = null;
 
 buildColorChoices(editColorChoices, 'editColor');
+buildCoverChoices(editCoverChoices, 'editCover');
 
 binderNameInput.addEventListener('input', () => showNameCount(binderNameInput, nameCount));
 
@@ -526,6 +561,7 @@ function openEditDialog(id) {
   binderPagesInput.value = binderPages(id);
   updatePagesNote();
   editBinderDialog.querySelector(`input[name="editColor"][value="${binder.color || ''}"]`).checked = true;
+  editBinderDialog.querySelector(`input[name="editCover"][value="${cleanCover(binder.cover)}"]`).checked = true;
   editBinderDialog.returnValue = '';
   editBinderDialog.showModal();
   binderNameInput.select();
@@ -539,6 +575,8 @@ editBinderDialog.addEventListener('close', async () => {
   if (!name) return;
   const picked = editBinderDialog.querySelector('input[name="editColor"]:checked');
   const color = picked && picked.value ? picked.value : null;
+  const pickedCover = editBinderDialog.querySelector('input[name="editCover"]:checked');
+  const cover = cleanCover(pickedCover && pickedCover.value);
   let pages = Math.max(cleanPageCount(binderPagesInput.value), Number(binderPagesInput.min));
   const oldPages = binderPages(id);
 
@@ -547,6 +585,7 @@ editBinderDialog.addEventListener('close', async () => {
   if (!binder) return;
   binder.name = name;
   binder.color = color;
+  binder.cover = cover;
   binder.pages = pages;
   saveBinderList(binders);
   renderShelf(binders);
@@ -568,7 +607,7 @@ editBinderDialog.addEventListener('close', async () => {
         await syncBinder(id);
       }
     }
-    await updateBinderDetails(id, { name, color, pages });
+    await updateBinderDetails(id, { name, color, cover, pages });
     setShelfMessage('');
   } catch (err) {
     if (err.signedOut) { showSignedOut(err.message); return; }

@@ -240,11 +240,24 @@ main {
   display: block;
   width: 100%;
   aspect-ratio: 10 / 12;
-  border: 1px solid var(--binder-cover-edge);
+  border: 1px solid var(--cover-edge);
   border-radius: 4px 12px 12px 4px;
-  background: linear-gradient(135deg, #2a2a30 0%, var(--binder-cover) 55%, #050506 100%);
+  background: linear-gradient(135deg, var(--cover-light) 0%, var(--cover-base) 55%, var(--cover-dark) 100%);
   box-shadow: var(--binder-shadow);
   transition: transform 0.3s cubic-bezier(0.34, 1.6, 0.64, 1), box-shadow 0.3s ease;
+}
+
+.closed-binder {
+  --cover-text: #e9e5dc;
+  --cover-label-line: rgba(255, 255, 255, 0.16);
+  --cover-label-fill: rgba(255, 255, 255, 0.05);
+}
+.closed-binder.cover-white,
+.closed-binder.cover-gold,
+.closed-binder.cover-gray {
+  --cover-text: #24211c;
+  --cover-label-line: rgba(0, 0, 0, 0.28);
+  --cover-label-fill: rgba(255, 255, 255, 0.35);
 }
 
 .closed-binder::before {
@@ -255,7 +268,7 @@ main {
   left: 0;
   width: 15%;
   border-radius: 4px 0 0 4px;
-  background: linear-gradient(to right, #030304, #1b1b20 45%, #08080a 80%, #24242a);
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.25) 45%, rgba(0, 0, 0, 0.55) 80%, rgba(255, 255, 255, 0.08));
   box-shadow: inset -2px 0 3px rgba(0, 0, 0, 0.6);
 }
 
@@ -270,10 +283,10 @@ main {
   font-size: 0.8rem;
   font-weight: 600;
   text-align: center;
-  color: #e9e5dc;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--cover-text);
+  border: 1px solid var(--cover-label-line);
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--cover-label-fill);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -327,136 +340,9 @@ main {
   .binder-tile:focus-visible .closed-binder { transform: none; }
 }
 
-.new-binder-dialog {
-  width: 460px;
-  max-width: calc(100vw - 32px);
-  padding: 24px;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
-}
-
-.new-binder-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.dialog-title {
-  margin: 0 0 6px;
-  font-size: 1.25rem;
-}
-.dialog-text {
-  padding: 0;
-  margin-bottom: 16px;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-.color-choices {
-  margin: 0;
-  padding: 0;
-  border: none;
-}
-
-.color-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
-.color-grid.two-colors { grid-template-columns: repeat(5, 1fr); }
-
-.choice-group-title {
-  margin: 14px 0 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.color-choice {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 2px 8px;
-  border: 2px solid transparent;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s;
-}
-.color-choice:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
-
-.color-choice input {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.color-choice:has(input:checked) {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-.color-choice:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.choice-symbol {
-  width: 36px;
-  height: 36px;
-}
-
-.no-symbol {
-  display: block;
-  border: 2px solid var(--muted);
-  border-radius: 50%;
-  background: linear-gradient(135deg, transparent 46%, var(--muted) 46%, var(--muted) 54%, transparent 54%);
-}
-
-.choice-name {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-.dialog-buttons {
-  display: flex;
-  flex-direction: row-reverse;
-  gap: 10px;
-  margin-top: 22px;
-}
-
-.dialog-button {
-  padding: 9px 18px;
-  font: inherit;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text);
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  cursor: pointer;
-}
-.dialog-button:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
-
-.dialog-button.primary {
-  color: #ffffff;
-  background: var(--accent);
-  border-color: var(--accent);
-}
-.dialog-button.primary:hover { filter: brightness(1.1); }
-
 @media (max-width: 560px) {
   .cover-label { font-size: 0.7rem; padding: 4px; }
   .cover-plus { font-size: 2.6rem; }
-  .color-grid { gap: 4px; }
-  .choice-name { font-size: 0.65rem; }
-  .choice-symbol { width: 30px; height: 30px; }
 }
 
 @media (min-width: 720px) {
@@ -605,73 +491,6 @@ body.dragging .drop-zone { display: grid; }
   background: var(--danger-bright);
   transform: translateX(-50%) scale(1.25);
 }
-
-.field-label {
-  display: block;
-  margin: 14px 0 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.name-field {
-  position: relative;
-  margin-bottom: 16px;
-}
-.name-input {
-  width: 100%;
-  padding: 10px 64px 10px 12px;
-  font: inherit;
-  font-size: 1rem;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.name-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
-}
-.name-count {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 0.8rem;
-  color: var(--muted);
-  pointer-events: none;
-}
-
-.pages-field {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
-  margin-bottom: 16px;
-}
-.pages-input {
-  width: 90px;
-  padding: 9px 10px;
-  font: inherit;
-  font-size: 1rem;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-.pages-input:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
-}
-.pages-note {
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-.pages-note.error { color: var(--error); }
 
 .dialog-buttons.normal-order {
   flex-direction: row;

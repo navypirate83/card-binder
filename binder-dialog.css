@@ -1,0 +1,339 @@
+/* =========================================================================
+   binder-dialog.css — the look of the binder windows (pop-ups)
+   Shared by the My Binders page (index.html: the New binder and Binder
+   properties windows) and the MTG Card Finder page (cardsearch.html: the
+   New binder window that opens from the "Add to which binder?" menu).
+   It uses the color names (--text, --surface, --accent...) that each
+   page's own stylesheet sets for light and dark mode.
+   ========================================================================= */
+
+/* =====================================================================
+   COVER COLORS (used by the binders on the shelf, the cover color
+   choices in the windows, and the dots in the card finder's menu)
+   ===================================================================== */
+
+/*
+  The cover colors. Each class sets the shades the cover is drawn with:
+    --cover-light / --cover-base / --cover-dark: the sheen gradient
+    --cover-edge: the thin border around the cover
+    --cover-text, --cover-label-line, --cover-label-fill: the name label's
+      text, border and see-through fill
+  Dark covers use light label text; light covers (white, gold, light gray)
+  use dark label text so the name stays easy to read.
+  Black is the default and uses the My Binders page's --binder-cover
+  colors (set in landing.css for light and dark mode), so it looks the
+  same as before covers had colors. Pages without them use the same black
+  (the second color in "var(--binder-cover, #121214)" is the fallback).
+*/
+.cover-black {
+  --cover-light: #2a2a30;
+  --cover-base: var(--binder-cover, #121214);
+  --cover-dark: #050506;
+  --cover-edge: var(--binder-cover-edge, #2a2a2e);
+}
+.cover-white {
+  --cover-light: #fbfaf7;
+  --cover-base: #e9e6df;
+  --cover-dark: #c9c4b8;
+  --cover-edge: #b8b2a5;
+}
+.cover-blue {
+  --cover-light: #3a6fb5;
+  --cover-base: #1f4f8f;
+  --cover-dark: #12305a;
+  --cover-edge: #2c5d9e;
+}
+.cover-red {
+  --cover-light: #b33a32;
+  --cover-base: #8e2020;
+  --cover-dark: #561010;
+  --cover-edge: #a02c28;
+}
+.cover-green {
+  --cover-light: #2f8a50;
+  --cover-base: #1f6a3a;
+  --cover-dark: #113f22;
+  --cover-edge: #287a45;
+}
+.cover-gold {
+  --cover-light: #dcb64a;
+  --cover-base: #b8902a;
+  --cover-dark: #7d5f14;
+  --cover-edge: #9c7a20;
+}
+.cover-gray {
+  --cover-light: #d6d8dc;
+  --cover-base: #b9bcc2;
+  --cover-dark: #8d9096;
+  --cover-edge: #9a9da3;
+}
+
+/* =====================================================================
+   THE WINDOWS (New binder and Binder properties)
+   ===================================================================== */
+
+/*
+  The pop-up window itself. A <dialog> opened with showModal() is centered
+  on the screen by the browser; these rules give it the page's colors,
+  rounded corners and a shadow. "max-width: calc(100vw - 32px)" keeps a
+  16px gap at each side on a phone.
+*/
+.new-binder-dialog {
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  padding: 24px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+/* The dimmed layer the browser puts over the page behind the window */
+.new-binder-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* "New binder" and the line under it */
+.dialog-title {
+  margin: 0 0 6px;
+  font-size: 1.25rem;
+}
+.dialog-text {
+  padding: 0;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* The group of choices: no box around it (a fieldset normally has one) */
+.color-choices {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* The "Cover color" group comes right after the symbol group, so give it
+   some space above to keep the two groups apart */
+.color-choices + .color-choices { margin-top: 16px; }
+
+/*
+  The choices are in two groups (see buildColorChoices in landing.js):
+  - the single symbols (None, the five colors, Colorless, Planeswalker):
+    two rows of 4
+  - the ten two-color symbols, under a "Two colors" heading: two rows of 5
+*/
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.color-grid.two-colors { grid-template-columns: repeat(5, 1fr); }
+
+/* The small "Two colors" heading between the two groups */
+.choice-group-title {
+  margin: 14px 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/*
+  One choice: the symbol with its name under it, in a rounded box.
+  The real radio button is hidden visually (but still works for the
+  keyboard and screen readers); the box shows which one is picked.
+*/
+.color-choice {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 2px 8px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.color-choice:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+/* The radio button itself: invisible, laid over the whole box so it's
+   still clicked and focused like normal */
+.color-choice input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* The picked choice: an accent-colored border and a light accent tint.
+   ":has(input:checked)" means "a choice whose radio button is ticked". */
+.color-choice:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* A keyboard user moving through the choices sees an outline */
+.color-choice:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The symbol picture (or the empty "None" circle) */
+.choice-symbol {
+  width: 36px;
+  height: 36px;
+}
+
+/* "None": an empty circle with a slash through it, drawn with a border
+   and a gradient line, so it reads as "no symbol" */
+.no-symbol {
+  display: block;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+  background: linear-gradient(135deg, transparent 46%, var(--muted) 46%, var(--muted) 54%, transparent 54%);
+}
+
+/* The cover color choices: the seven colors in rows of 4 (4 + 3), like
+   the symbol choices above them */
+.cover-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+/* A cover color swatch: a round sample of the cover, drawn with the same
+   gradient and edge as the closed binder (its ".cover-<color>" class
+   supplies the shades) */
+.cover-swatch {
+  display: block;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--cover-edge);
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--cover-light) 0%, var(--cover-base) 55%, var(--cover-dark) 100%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* The color's name under its symbol */
+.choice-name {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* The Cancel / Create binder buttons along the bottom, on the right.
+   "row-reverse" shows them in the opposite order to the HTML, so Cancel
+   is on the left even though "Create binder" comes first in the code. */
+.dialog-buttons {
+  display: flex;
+  flex-direction: row-reverse;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+/* Both buttons: rounded, the page's font */
+.dialog-button {
+  padding: 9px 18px;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.dialog-button:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+
+/* "Create binder" / "Save" is the main action, so it's filled with the accent color */
+.dialog-button.primary {
+  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.dialog-button.primary:hover { filter: brightness(1.1); }
+
+/* "NAME" / "PAGES" and the boxes under them */
+/* "NAME" / "PAGES": the small headings above the boxes */
+.field-label {
+  display: block;
+  margin: 14px 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The name box with its "5 / 12" counter on the right inside it */
+.name-field {
+  position: relative;
+  margin-bottom: 16px;
+}
+.name-input {
+  width: 100%;
+  padding: 10px 64px 10px 12px;   /* room on the right for the counter */
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.name-count {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* The Pages row: a small number box with a note beside it explaining the
+   limits ("Holds 160 cards · 3 to 150 pages"). The note wraps under the box
+   on a narrow phone. */
+.pages-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-bottom: 16px;
+}
+.pages-input {
+  width: 90px;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.pages-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.pages-note {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+/* The note turns red while the number is outside the allowed range */
+.pages-note.error { color: var(--error); }
+
+/* Phones: tighter symbol and cover color choices (smaller names,
+   pictures and gaps) so 5 fit across a phone */
+@media (max-width: 560px) {
+  .color-grid, .cover-grid { gap: 4px; }
+  .choice-name { font-size: 0.65rem; }
+  .choice-symbol, .cover-swatch { width: 30px; height: 30px; }
+}

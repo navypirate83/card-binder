@@ -225,13 +225,14 @@ async function writeBinderFile(fileId, data) {
   });
 }
 
-async function createBinderFile(name, cards = {}, color = null, order = null) {
+async function createBinderFile(name, cards = {}, color = null, order = null, cover = DEFAULT_COVER) {
   const folderId = await getBinderFolderId();
   const boundary = `binder-${Date.now()}`;
-  const data = { app: FILE_APP_NAME, version: 1, name, color, pages: DEFAULT_PAGES, cards };
+  const data = { app: FILE_APP_NAME, version: 1, name, color, cover, pages: DEFAULT_PAGES, cards };
   const details = { name: `${name}.json`, mimeType: 'application/json', parents: [folderId] };
   const labels = {};
   if (color) labels.color = color;
+  if (cover !== DEFAULT_COVER) labels.cover = cover;
   if (order !== null) labels.order = String(order);
   if (Object.keys(labels).length) details.appProperties = labels;
   const body =
@@ -249,11 +250,12 @@ async function createBinderFile(name, cards = {}, color = null, order = null) {
   return response.json();
 }
 
-async function updateBinderDetails(fileId, { name, color, pages, order } = {}) {
+async function updateBinderDetails(fileId, { name, color, cover, pages, order } = {}) {
   const details = {};
   const labels = {};
   if (name !== undefined) details.name = `${name}.json`;
   if (color !== undefined) labels.color = color;
+  if (cover !== undefined) labels.cover = cover;
   if (pages !== undefined) labels.pages = String(pages);
   if (order !== undefined) labels.order = String(order);
   if (Object.keys(labels).length) details.appProperties = labels;

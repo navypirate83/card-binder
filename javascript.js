@@ -1280,9 +1280,10 @@ moveToNewButton.addEventListener('click', async () => {
   try {
     await ensureSignedIn();
     const cards = { [pocketKey(1, 1)]: card };
-    // It goes at the end of the shelf on the My Binders page.
+    // It goes at the end of the shelf on the My Binders page, with no
+    // symbol and the usual black cover (both can be changed there later).
     const file = await createBinderFile(name, cards, null, binders.length);
-    binders.push({ id: file.id, name, color: null, pages: DEFAULT_PAGES });
+    binders.push({ id: file.id, name, color: null, cover: DEFAULT_COVER, pages: DEFAULT_PAGES });
     saveBinderList(binders);
     saveBinder(cards, file.id, { dirty: false });
     takeMovedCardOut(`✓ Moved to new binder ${name}`);
