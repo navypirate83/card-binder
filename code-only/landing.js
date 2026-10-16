@@ -6,6 +6,7 @@ const signInMessage  = document.getElementById('signInMessage');
 const signedInView   = document.getElementById('signedInView');
 const accountName    = document.getElementById('accountName');
 const footerSignOut  = document.getElementById('footerSignOut');
+const myBindersItem  = document.getElementById('myBindersItem');
 const binderShelf    = document.getElementById('binderShelf');
 const shelfMessage   = document.getElementById('shelfMessage');
 const newBinderDialog = document.getElementById('newBinderDialog');
@@ -18,8 +19,6 @@ const deleteBinderDialog = document.getElementById('deleteBinderDialog');
 const deleteBinderText   = document.getElementById('deleteBinderText');
 const editDropZone       = document.getElementById('editDropZone');
 const deleteDropZone     = document.getElementById('deleteDropZone');
-
-const MAX_BINDERS = 9;
 
 function setTheme(theme) {
   root.setAttribute('data-theme', theme);
@@ -37,6 +36,7 @@ function showSignedOut(message = '') {
   signedInView.hidden = true;
   signedOutView.hidden = false;
   footerSignOut.hidden = true;
+  myBindersItem.hidden = true;
   signInMessage.textContent = message;
   signInButton.disabled = false;
 }
@@ -58,6 +58,7 @@ async function showSignedIn() {
   signedOutView.hidden = true;
   signedInView.hidden = false;
   footerSignOut.hidden = false;
+  myBindersItem.hidden = false;
   renderShelf(loadBinderList());
   shelfMessage.classList.remove('error');
   shelfMessage.textContent = 'Loading your binders…';
@@ -73,12 +74,13 @@ async function showSignedIn() {
         id: file.id,
         name: nameFromFileName(file.name),
         color: manaColor(labels.color) ? labels.color : null,
+        pages: cleanPageCount(labels.pages),
         order: labels.order !== undefined ? Number(labels.order) : null
       };
     });
 
     binders.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-    binders = binders.map(({ id, name, color }) => ({ id, name, color }));
+    binders = binders.map(({ id, name, color, pages }) => ({ id, name, color, pages }));
 
     if (binders.length === 0) binders = await moveOldCardsIntoFirstBinder();
 
@@ -107,7 +109,7 @@ async function moveOldCardsIntoFirstBinder() {
   const file = await createBinderFile(name, { app: FILE_APP_NAME, version: 1, name, color: null, cards });
   saveBinder(cards, file.id, { dirty: false });
   storageRemove(OLD_SINGLE_BINDER_KEY);
-  return [{ id: file.id, name, color: null }];
+  return [{ id: file.id, name, color: null, pages: DEFAULT_PAGES }];
 }
 
 function renderShelf(binders) {
@@ -127,21 +129,19 @@ function renderShelf(binders) {
     binderShelf.appendChild(tile);
   }
 
-  if (binders.length < MAX_BINDERS) {
-    const addTile = document.createElement('button');
-    addTile.type = 'button';
-    addTile.id = 'addBinderTile';
-    addTile.className = 'binder-tile';
-    addTile.setAttribute('aria-label', 'Make a new binder');
-    const cover = closedBinder(null, null);
-    const plus = document.createElement('span');
-    plus.className = 'cover-plus';
-    plus.textContent = '+';
-    cover.appendChild(plus);
-    addTile.append(cover, caption('New binder'));
-    addTile.addEventListener('click', openNewBinderDialog);
-    binderShelf.appendChild(addTile);
-  }
+  const addTile = document.createElement('button');
+  addTile.type = 'button';
+  addTile.id = 'addBinderTile';
+  addTile.className = 'binder-tile';
+  addTile.setAttribute('aria-label', 'Make a new binder');
+  const cover = closedBinder(null, null);
+  const plus = document.createElement('span');
+  plus.className = 'cover-plus';
+  plus.textContent = '+';
+  cover.appendChild(plus);
+  addTile.append(cover, caption('New binder'));
+  addTile.addEventListener('click', openNewBinderDialog);
+  binderShelf.appendChild(addTile);
 
   fitCoverLabels();
 }
@@ -150,11 +150,22 @@ function fitCoverLabels() {
   for (const label of binderShelf.querySelectorAll('.cover-label')) {
     label.style.fontSize = '';
     let size = parseFloat(getComputedStyle(label).fontSize);
-    while (label.scrollWidth > label.clientWidth && size > 8) {
+    while (nameTooWide(label) && size > 8) {
       size -= 0.5;
       label.style.fontSize = `${size}px`;
     }
   }
+}
+
+function nameTooWide(label) {
+  const range = document.createRange();
+  range.selectNodeContents(label);
+  const textWidth = range.getBoundingClientRect().width;
+  const style = getComputedStyle(label);
+  const space = label.getBoundingClientRect().width
+    - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+    - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth);
+  return textWidth > space;
 }
 
 window.addEventListener('resize', fitCoverLabels);
@@ -188,15 +199,26 @@ function caption(text) {
 }
 
 function buildColorChoices(container, groupName) {
-  const options = [{ code: '', name: 'None', symbol: null }, ...MANA_COLORS];
+  const singleRow = document.createElement('div');
+  singleRow.className = 'color-grid';
+  const twoHeading = document.createElement('p');
+  twoHeading.className = 'choice-group-title';
+  twoHeading.textContent = 'Two colors';
+  const twoRows = document.createElement('div');
+  twoRows.className = 'color-grid two-colors';
+  container.append(singleRow, twoHeading, twoRows);
+
+  const options = [{ code: '', name: 'None', short: 'None', group: 'single', symbol: null }, ...MANA_COLORS];
   for (const option of options) {
     const choice = document.createElement('label');
     choice.className = 'color-choice';
+    choice.title = option.name;
 
     const radio = document.createElement('input');
     radio.type = 'radio';
     radio.name = groupName;
     radio.value = option.code;
+    if (option.short !== option.name) radio.setAttribute('aria-label', `${option.name}, ${option.short}`);
 
     let picture;
     if (option.symbol) {
@@ -211,25 +233,36 @@ function buildColorChoices(container, groupName) {
 
     const label = document.createElement('span');
     label.className = 'choice-name';
-    label.textContent = option.name;
+    label.textContent = option.short;
 
     choice.append(radio, picture, label);
-    container.appendChild(choice);
+    (option.group === 'two' ? twoRows : singleRow).appendChild(choice);
   }
 }
 buildColorChoices(colorChoices, 'binderColor');
 
+const newBinderName = document.getElementById('newBinderName');
+const newNameCount  = document.getElementById('newNameCount');
+
+function showNameCount(input, counter) {
+  counter.textContent = `${input.value.length} / ${input.maxLength}`;
+}
+newBinderName.addEventListener('input', () => showNameCount(newBinderName, newNameCount));
+
 function openNewBinderDialog() {
-  if (loadBinderList().length >= MAX_BINDERS) return;
+  newBinderName.value = nextBinderName();
+  showNameCount(newBinderName, newNameCount);
   newBinderDialog.querySelector('input[value=""]').checked = true;
   newBinderDialog.returnValue = '';
   newBinderDialog.showModal();
+  newBinderName.select();
 }
 
 newBinderDialog.addEventListener('close', () => {
   if (newBinderDialog.returnValue !== 'create') return;
   const picked = newBinderDialog.querySelector('input[name="binderColor"]:checked');
-  makeNewBinder(picked && picked.value ? picked.value : null);
+  const name = newBinderName.value.trim().slice(0, newBinderName.maxLength) || nextBinderName();
+  makeNewBinder(name, picked && picked.value ? picked.value : null);
 });
 
 function closeOnBackdropClick(dialog) {
@@ -239,23 +272,17 @@ function closeOnBackdropClick(dialog) {
 }
 closeOnBackdropClick(newBinderDialog);
 
-async function makeNewBinder(color) {
+async function makeNewBinder(name, color) {
   const binders = loadBinderList();
-  if (binders.length >= MAX_BINDERS) return;
   const addTile = document.getElementById('addBinderTile');
   if (addTile) addTile.disabled = true;
   shelfMessage.classList.remove('error');
   shelfMessage.textContent = 'Making a new binder…';
 
-  const used = new Set(binders.map((b) => b.name));
-  let number = 1;
-  while (used.has(`Binder ${number}`)) number++;
-  const name = `Binder ${number}`;
-
   try {
     const file = await createBinderFile(name, { app: FILE_APP_NAME, version: 1, name, color, cards: {} }, color, binders.length);
     saveBinder({}, file.id, { dirty: false });
-    binders.push({ id: file.id, name, color });
+    binders.push({ id: file.id, name, color, pages: DEFAULT_PAGES });
     saveBinderList(binders);
     renderShelf(binders);
     shelfMessage.textContent = '';
@@ -462,23 +489,43 @@ binderShelf.addEventListener('contextmenu', (event) => {
   if (event.target.closest('a.binder-tile')) event.preventDefault();
 });
 
+const binderPagesInput = document.getElementById('binderPagesInput');
+const pagesNote        = document.getElementById('pagesNote');
+
+function updatePagesNote() {
+  const pages = Number(binderPagesInput.value);
+  const min = Number(binderPagesInput.min);
+  const range = `${min} to ${MAX_PAGES} pages`;
+  let text;
+  if (!Number.isInteger(pages) || pages < 1) text = `Enter a number (${range}).`;
+  else if (pages < min) text = `Too few: its cards need at least ${min} page${min === 1 ? '' : 's'}.`;
+  else if (pages > MAX_PAGES) text = `Too many: the most is ${MAX_PAGES} pages.`;
+  else text = `Holds ${pages * POCKETS_PER_PAGE} cards · ${range}`;
+  const ok = Number.isInteger(pages) && pages >= min && pages <= MAX_PAGES;
+  pagesNote.textContent = text;
+  pagesNote.classList.toggle('error', !ok);
+}
+binderPagesInput.addEventListener('input', updatePagesNote);
+
 const NAME_LIMIT = binderNameInput.maxLength;
 
 let editingId = null;
 
 buildColorChoices(editColorChoices, 'editColor');
 
-function updateNameCount() {
-  nameCount.textContent = `${binderNameInput.value.length} / ${NAME_LIMIT}`;
-}
-binderNameInput.addEventListener('input', updateNameCount);
+binderNameInput.addEventListener('input', () => showNameCount(binderNameInput, nameCount));
 
 function openEditDialog(id) {
   const binder = loadBinderList().find((b) => b.id === id);
   if (!binder) return;
   editingId = id;
   binderNameInput.value = binder.name.slice(0, NAME_LIMIT);
-  updateNameCount();
+  showNameCount(binderNameInput, nameCount);
+  const cardCount = Object.keys(loadBinder(id)).length;
+  binderPagesInput.min = minPagesFor(cardCount);
+  binderPagesInput.max = MAX_PAGES;
+  binderPagesInput.value = binderPages(id);
+  updatePagesNote();
   editBinderDialog.querySelector(`input[name="editColor"][value="${binder.color || ''}"]`).checked = true;
   editBinderDialog.returnValue = '';
   editBinderDialog.showModal();
@@ -493,19 +540,37 @@ editBinderDialog.addEventListener('close', async () => {
   if (!name) return;
   const picked = editBinderDialog.querySelector('input[name="editColor"]:checked');
   const color = picked && picked.value ? picked.value : null;
+  let pages = Math.min(Math.max(cleanPageCount(binderPagesInput.value), Number(binderPagesInput.min)), MAX_PAGES);
+  const oldPages = binderPages(id);
 
   const binders = loadBinderList();
   const binder = binders.find((b) => b.id === id);
   if (!binder) return;
   binder.name = name;
   binder.color = color;
+  binder.pages = pages;
   saveBinderList(binders);
   renderShelf(binders);
 
   shelfMessage.classList.remove('error');
   shelfMessage.textContent = 'Saving…';
   try {
-    await updateBinderDetails(id, { name, color });
+    if (pages < oldPages) {
+      const cards = await syncBinder(id);
+      const needed = minPagesFor(Object.keys(cards).length);
+      if (pages < needed) {
+        pages = needed;
+        binder.pages = pages;
+        saveBinderList(binders);
+        renderShelf(binders);
+      }
+      const fitted = fitCardsIntoPages(cards, pages);
+      if (JSON.stringify(fitted) !== JSON.stringify(cards)) {
+        saveBinder(fitted, id);
+        await syncBinder(id);
+      }
+    }
+    await updateBinderDetails(id, { name, color, pages });
     shelfMessage.textContent = '';
   } catch (err) {
     if (err.signedOut) { showSignedOut(err.message); return; }

@@ -298,9 +298,9 @@ main {
   object-fit: cover;
 }
 
-.binder-trash {
+.binder-trash,
+.binder-move {
   position: absolute;
-  top: 50%;
   left: 50%;
   z-index: 5;
   display: none;
@@ -309,20 +309,24 @@ main {
   height: 64px;
   border-radius: 50%;
   color: #ffffff;
-  background: #c0392b;
   border: 3px solid #ffffff;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
   transform: translate(-50%, -50%);
   transition: transform 0.15s ease, background-color 0.15s ease;
 }
-.binder-trash svg { width: 30px; height: 30px; }
+.binder-trash svg,
+.binder-move svg { width: 30px; height: 30px; }
 
-body.dragging .binder-trash { display: grid; }
+.binder-move  { top: 33.333%; background: #2b6cb0; }
+.binder-trash { top: 66.667%; background: #c0392b; }
 
-.binder-trash.active {
-  background: #e74c3c;
-  transform: translate(-50%, -50%) scale(1.25);
-}
+body.dragging .binder-trash,
+body.dragging .binder-move { display: grid; }
+
+.binder-trash.active,
+.binder-move.active { transform: translate(-50%, -50%) scale(1.25); }
+.binder-trash.active { background: #e74c3c; }
+.binder-move.active  { background: #3b82d6; }
 
 .drag-ghost { transition: opacity 0.15s ease; }
 .drag-ghost.over-trash { opacity: 0.3; }
@@ -539,3 +543,154 @@ body { padding-bottom: 43px; }
   .site-footer { font-size: 0.78rem; column-gap: 8px; }
   .footer-links { gap: 8px 10px; }
 }
+
+.move-dialog {
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  padding: 24px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+.move-dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
+
+.dialog-title {
+  margin: 0 0 6px;
+  font-size: 1.25rem;
+}
+.dialog-text {
+  margin: 0 0 14px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.move-targets {
+  display: grid;
+  gap: 6px;
+}
+
+.move-target {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.move-target:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+}
+
+.move-target:disabled { opacity: 0.5; cursor: default; }
+
+.move-symbol {
+  display: block;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+}
+
+.move-name { flex: 1; font-weight: 600; }
+.move-count { font-size: 0.85rem; color: var(--muted); }
+
+.move-none {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.move-new { margin-top: 18px; }
+
+.field-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.move-new-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.name-field {
+  position: relative;
+  flex: 1 1 180px;
+}
+.name-input {
+  width: 100%;
+  padding: 9px 60px 9px 12px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.name-count {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.move-message {
+  min-height: 1.3em;
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.move-message.error { color: #d0453a; }
+
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.dialog-button {
+  padding: 9px 18px;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.dialog-button:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.dialog-button:disabled { opacity: 0.6; cursor: default; }
+
+.dialog-button.primary {
+  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.dialog-button.primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--accent); }

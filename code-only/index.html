@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MTG Card Binder</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/favicon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
   <script>
     (function () {
@@ -72,13 +75,19 @@
     <dialog id="newBinderDialog" class="new-binder-dialog" aria-labelledby="newBinderTitle">
       <form method="dialog">
         <h2 id="newBinderTitle" class="dialog-title">New binder</h2>
+        <label class="field-label" for="newBinderName">Name</label>
+        <div class="name-field">
+          <input id="newBinderName" class="name-input" type="text"
+                 maxlength="12" autocomplete="off" spellcheck="false" required>
+          <span id="newNameCount" class="name-count" aria-live="polite"></span>
+        </div>
         <fieldset class="color-choices">
           <legend class="dialog-text">Choose a color symbol for the cover, or none.</legend>
-          <div id="colorChoices" class="color-grid"></div>
+          <div id="colorChoices" class="color-groups"></div>
         </fieldset>
         <div class="dialog-buttons">
           <button value="create" class="dialog-button primary" type="submit">Create binder</button>
-          <button value="cancel" class="dialog-button" type="submit">Cancel</button>
+          <button value="cancel" class="dialog-button" type="submit" formnovalidate>Cancel</button>
         </div>
       </form>
     </dialog>
@@ -92,9 +101,17 @@
                  maxlength="12" autocomplete="off" spellcheck="false" required>
           <span id="nameCount" class="name-count" aria-live="polite"></span>
         </div>
+
+        <label class="field-label" for="binderPagesInput">Pages</label>
+        <div class="pages-field">
+          <input id="binderPagesInput" class="pages-input" type="number"
+                 step="1" inputmode="numeric" required aria-describedby="pagesNote">
+          <span id="pagesNote" class="pages-note"></span>
+        </div>
+
         <fieldset class="color-choices">
           <legend class="dialog-text">Cover symbol</legend>
-          <div id="editColorChoices" class="color-grid"></div>
+          <div id="editColorChoices" class="color-groups"></div>
         </fieldset>
         <div class="dialog-buttons">
           <button value="save" class="dialog-button primary" type="submit">Save</button>
@@ -132,7 +149,7 @@
   <footer class="site-footer">
     <nav aria-label="All pages">
       <ul class="footer-links">
-        <li><a href="index.html" aria-current="page">My Binders</a></li>
+        <li id="myBindersItem" hidden><a href="index.html" aria-current="page">My Binders</a></li>
         <li><a href="cardsearch.html">MTG Card Finder</a></li>
       </ul>
     </nav>

@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MTG Card Binder</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/favicon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
   <script>
     (function () {
@@ -66,6 +69,13 @@
 
   <main>
     <section id="binder" class="binder" aria-label="Card binder">
+      <div id="binderMove" class="binder-move" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <path d="M9 13h7M13 10l3 3-3 3"/>
+        </svg>
+      </div>
       <div id="binderTrash" class="binder-trash" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
              stroke-linecap="round">
@@ -73,6 +83,32 @@
         </svg>
       </div>
     </section>
+
+    <dialog id="moveCardDialog" class="move-dialog" aria-labelledby="moveCardTitle">
+      <form method="dialog">
+        <h2 id="moveCardTitle" class="dialog-title">Move card to…</h2>
+        <p id="moveCardText" class="dialog-text"></p>
+        <div id="moveTargets" class="move-targets"></div>
+
+        <div id="moveNewBinder" class="move-new">
+          <label class="field-label" for="moveNewName">Or move it to a new binder</label>
+          <div class="move-new-row">
+            <div class="name-field">
+              <input id="moveNewName" class="name-input" type="text"
+                     maxlength="12" autocomplete="off" spellcheck="false">
+              <span id="moveNewCount" class="name-count" aria-live="polite"></span>
+            </div>
+            <button id="moveToNewButton" class="dialog-button primary" type="button">New binder &amp; move</button>
+          </div>
+        </div>
+
+        <p id="moveMessage" class="move-message" role="status"></p>
+
+        <div class="dialog-buttons">
+          <button value="cancel" class="dialog-button" type="submit">Cancel</button>
+        </div>
+      </form>
+    </dialog>
 
     <nav class="page-nav" aria-label="Binder pages">
       <button id="prevPage" class="page-link" type="button">&larr; Previous page</button>

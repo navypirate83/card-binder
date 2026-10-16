@@ -5,6 +5,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MTG Card Binder</title>
+  <!--
+    The site's icon (the open card binder), shown on the browser tab, in
+    bookmarks, and on a phone's home screen. Browsers pick the size they
+    need: 32px for tabs, 192px for Android, and "apple-touch-icon" (180px)
+    for iPhones and iPads.
+  -->
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/favicon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
   <!--
     This tiny script runs BEFORE the page draws, so the saved light/dark choice
@@ -100,11 +109,22 @@
     -->
     <section id="binder" class="binder" aria-label="Card binder">
       <!--
-        The "remove card" spot: a red circle with an X in the middle of the
-        binder. It's hidden until a card is being dragged; dropping the card
-        on it takes the card out of the binder. (aria-hidden: it only works
-        with dragging, so screen readers skip it.)
+        Two drop spots, hidden until a card is being dragged (aria-hidden:
+        they only work with dragging, so screen readers skip them):
+        - "move to another binder": a blue circle with a folder-and-arrow,
+          1/3 of the way down the binder. Dropping a card on it opens the
+          "Move card to…" window.
+        - "remove card": a red circle with an X, 1/3 of the way up from the
+          bottom. Dropping a card on it takes the card out of the binder.
       -->
+      <div id="binderMove" class="binder-move" aria-hidden="true">
+        <!-- Folder with an arrow going into it -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <path d="M9 13h7M13 10l3 3-3 3"/>
+        </svg>
+      </div>
       <div id="binderTrash" class="binder-trash" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
              stroke-linecap="round">
@@ -112,6 +132,44 @@
         </svg>
       </div>
     </section>
+
+    <!--
+      The "Move card to…" window: opens when a card is dropped on the blue
+      move circle. A <dialog> is a pop-up window built into the browser: it
+      sits on top of the page and dims everything behind it.
+      - The list (filled in by javascript.js) has a button for each of the
+        user's other binders; picking one moves the card there.
+      - Below it, a name box and "New binder & move" make a new binder with
+        just this card in it.
+      method="dialog" means Cancel just closes the window.
+    -->
+    <dialog id="moveCardDialog" class="move-dialog" aria-labelledby="moveCardTitle">
+      <form method="dialog">
+        <h2 id="moveCardTitle" class="dialog-title">Move card to…</h2>
+        <p id="moveCardText" class="dialog-text"></p>
+        <div id="moveTargets" class="move-targets"></div>
+
+        <div id="moveNewBinder" class="move-new">
+          <label class="field-label" for="moveNewName">Or move it to a new binder</label>
+          <div class="move-new-row">
+            <div class="name-field">
+              <input id="moveNewName" class="name-input" type="text"
+                     maxlength="12" autocomplete="off" spellcheck="false">
+              <!-- "5 / 12": how many characters are used of the limit -->
+              <span id="moveNewCount" class="name-count" aria-live="polite"></span>
+            </div>
+            <button id="moveToNewButton" class="dialog-button primary" type="button">New binder &amp; move</button>
+          </div>
+        </div>
+
+        <!-- Messages (like "Moving…" or "That binder is full") -->
+        <p id="moveMessage" class="move-message" role="status"></p>
+
+        <div class="dialog-buttons">
+          <button value="cancel" class="dialog-button" type="submit">Cancel</button>
+        </div>
+      </form>
+    </dialog>
 
     <!-- Previous / Next page links, with the current page number between them -->
     <nav class="page-nav" aria-label="Binder pages">

@@ -29,6 +29,10 @@ const versionSelect = document.getElementById('versionSelect');
 const languageSelect = document.getElementById('languageSelect');
 const rulingsBox    = document.getElementById('rulings');
 const rulingsBody   = document.getElementById('rulingsBody');
+const legalityBox   = document.getElementById('legality');
+const legalityList  = document.getElementById('legalityList');
+
+const LOGGED_IN = isLoggedIn();
 
 const state = {
   allNames: [],
@@ -510,6 +514,8 @@ function resetCardDetails() {
   cardInfo.innerHTML = '';
   rulingsBox.hidden = true;
   rulingsBody.innerHTML = '';
+  legalityBox.hidden = true;
+  legalityList.replaceChildren();
 }
 
 const RULING_SOURCES = { wotc: 'Wizards of the Coast', scryfall: 'Scryfall' };
@@ -685,13 +691,60 @@ function selectPrint(print) {
   loadLanguages(print);
   flipButton.hidden = !isDoubleSided(print);
   shareButton.hidden = false;
-  binderButton.hidden = false;
+  binderButton.hidden = !LOGGED_IN;
   showFace(0);
   cardInfo.innerHTML =
     `<strong>${escapeHtml(print.name)}</strong><br>` +
     `${escapeHtml(print.set_name)} · #${escapeHtml(print.collector_number)}` +
     (print.artist ? ` · Illustrated by ${escapeHtml(print.artist)}` : '') +
     `<br><a href="${escapeHtml(print.scryfall_uri)}" target="_blank" rel="noopener">View on Scryfall</a>`;
+  showLegalities(print);
+}
+
+const FORMAT_NAMES = [
+  ['standard', 'Standard'],          ['future', 'Future Standard'],
+  ['pioneer', 'Pioneer'],            ['modern', 'Modern'],
+  ['legacy', 'Legacy'],              ['vintage', 'Vintage'],
+  ['pauper', 'Pauper'],              ['commander', 'Commander'],
+  ['oathbreaker', 'Oathbreaker'],    ['paupercommander', 'Pauper Commander'],
+  ['duel', 'Duel Commander'],        ['predh', 'PreDH'],
+  ['tlr', 'Tiny Leaders: Reborn'],   ['brawl', 'Brawl'],
+  ['standardbrawl', 'Standard Brawl'], ['competitivebrawl', 'Competitive Brawl'],
+  ['historic', 'Historic'],          ['timeless', 'Timeless'],
+  ['alchemy', 'Alchemy'],            ['gladiator', 'Gladiator'],
+  ['penny', 'Penny Dreadful'],       ['premodern', 'Premodern'],
+  ['oldschool', 'Old School 93/94']
+];
+
+const LEGALITY_WORDS = {
+  legal: 'Legal',
+  not_legal: 'Not Legal',
+  banned: 'Banned',
+  restricted: 'Restricted'
+};
+
+function showLegalities(print) {
+  const legalities = print.legalities || {};
+  legalityList.replaceChildren();
+
+  const known = new Set(FORMAT_NAMES.map(([code]) => code));
+  const formats = [
+    ...FORMAT_NAMES.filter(([code]) => code in legalities),
+    ...Object.keys(legalities).filter((code) => !known.has(code)).map((code) => [code, code])
+  ];
+
+  for (const [code, name] of formats) {
+    const status = legalities[code];
+    const item = document.createElement('li');
+    const label = document.createElement('span');
+    label.textContent = name;
+    const tag = document.createElement('span');
+    tag.className = `legality-status ${LEGALITY_WORDS[status] ? status : 'not_legal'}`;
+    tag.textContent = LEGALITY_WORDS[status] || String(status);
+    item.append(label, tag);
+    legalityList.appendChild(item);
+  }
+  legalityBox.hidden = formats.length === 0;
 }
 
 function showFace(face) {
@@ -842,7 +895,9 @@ shareButton.addEventListener('click', async () => {
 
 const targetBinderId = currentBinderId() || storageGet(LAST_BINDER_KEY) || null;
 
-if (targetBinderId) {
+document.getElementById('myBindersItem').hidden = !LOGGED_IN;
+
+if (LOGGED_IN && targetBinderId) {
   const backLink = document.getElementById('backToBinderLink');
   backLink.textContent = binderName(targetBinderId);
   backLink.href = `binder.html?binder=${encodeURIComponent(targetBinderId)}`;
@@ -853,7 +908,8 @@ const binderTarget = (() => {
   const params = new URLSearchParams(location.search);
   const page = parseInt(params.get('binderPage'), 10);
   const slot = parseInt(params.get('binderSlot'), 10);
-  const valid = page >= 1 && page <= TOTAL_PAGES && slot >= 1 && slot <= POCKETS_PER_PAGE;
+  const pages = targetBinderId ? binderPages(targetBinderId) : MAX_PAGES;
+  const valid = page >= 1 && page <= pages && slot >= 1 && slot <= POCKETS_PER_PAGE;
   return valid ? { page, slot } : null;
 })();
 
@@ -865,14 +921,14 @@ function binderImageFor(print, face) {
 
 binderButton.addEventListener('click', () => {
   const print = state.currentPrint;
-  if (!print) return;
+  if (!print || !LOGGED_IN) return;
   if (!targetBinderId) {
     setHint('Open one of your binders first (My Binders, at the bottom of the page).', true);
     return;
   }
 
   const cards = loadBinder(targetBinderId);
-  const pocket = binderTarget || firstEmptyPocket(cards);
+  const pocket = binderTarget || firstEmptyPocket(cards, binderPages(targetBinderId));
   if (!pocket) {
     setHint('Your binder is full. Click a card in the binder to replace it.', true);
     return;

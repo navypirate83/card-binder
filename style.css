@@ -492,14 +492,19 @@ main {
 }
 
 /*
-  The red "remove card" circle in the middle of the binder.
-  It's centered with "top/left: 50%" plus a "translate(-50%, -50%)" pull
-  back by half its own size. It sits above the pages (z-index 5) and is
-  hidden (display: none) until a card is being dragged.
+  The two drop circles on the binder while a card is being dragged, both
+  centered across the binder (over the spine, or the middle of the page on
+  a phone):
+  - the blue "move to another binder" circle, 1/3 of the way down
+  - the red "remove card" circle, 1/3 of the way up from the bottom
+  Each is placed with "top" and "left: 50%" plus a "translate(-50%, -50%)"
+  pull back by half its own size, so its CENTER sits on that spot.
+  They sit above the pages (z-index 5) and are hidden (display: none)
+  until a card is being dragged.
 */
-.binder-trash {
+.binder-trash,
+.binder-move {
   position: absolute;
-  top: 50%;
   left: 50%;
   z-index: 5;
   display: none;
@@ -508,27 +513,32 @@ main {
   height: 64px;
   border-radius: 50%;
   color: #ffffff;
-  background: #c0392b;
   border: 3px solid #ffffff;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
   transform: translate(-50%, -50%);
   transition: transform 0.15s ease, background-color 0.15s ease;
 }
-.binder-trash svg { width: 30px; height: 30px; }
+.binder-trash svg,
+.binder-move svg { width: 30px; height: 30px; }
 
-/* Show it (as a centered grid) only while a card is being dragged */
-body.dragging .binder-trash { display: grid; }
+/* Where each one sits, and its color */
+.binder-move  { top: 33.333%; background: #2b6cb0; }
+.binder-trash { top: 66.667%; background: #c0392b; }
 
-/* A card is over it: grow it and turn it a brighter red, so it's clear
-   that letting go here will remove the card */
-.binder-trash.active {
-  background: #e74c3c;
-  transform: translate(-50%, -50%) scale(1.25);
-}
+/* Show them (as centered grids) only while a card is being dragged */
+body.dragging .binder-trash,
+body.dragging .binder-move { display: grid; }
 
-/* The floating card fades while it's over the circle. The circle is drawn
-   underneath the floating card, so this lets the red X show through, and
-   the fading hints that the card is about to go away. */
+/* A card is over one: grow it and brighten it, so it's clear what
+   letting go there will do */
+.binder-trash.active,
+.binder-move.active { transform: translate(-50%, -50%) scale(1.25); }
+.binder-trash.active { background: #e74c3c; }
+.binder-move.active  { background: #3b82d6; }
+
+/* The floating card fades while it's over either circle. The circles are
+   drawn underneath the floating card, so this lets them show through, and
+   the fading hints that the card is about to leave this binder. */
 .drag-ghost { transition: opacity 0.15s ease; }
 .drag-ghost.over-trash { opacity: 0.3; }
 
@@ -862,3 +872,184 @@ body { padding-bottom: 43px; }
   .site-footer { font-size: 0.78rem; column-gap: 8px; }
   .footer-links { gap: 8px 10px; }
 }
+/* =====================================================================
+   THE "MOVE CARD TO…" WINDOW (see MOVING A CARD TO ANOTHER BINDER in
+   javascript.js). It matches the pop-up windows on the My Binders page.
+   ===================================================================== */
+
+/*
+  The pop-up window itself. A <dialog> opened with showModal() is centered
+  on the screen by the browser; these rules give it the page's colors,
+  rounded corners and a shadow, and keep a 16px gap at each side on a phone.
+*/
+.move-dialog {
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  padding: 24px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+/* The dimmed layer the browser puts over the page behind the window */
+.move-dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
+
+/* "Move card to…" and the line under it */
+.dialog-title {
+  margin: 0 0 6px;
+  font-size: 1.25rem;
+}
+.dialog-text {
+  margin: 0 0 14px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* The list of the user's other binders, one button per line */
+.move-targets {
+  display: grid;
+  gap: 6px;
+}
+
+/*
+  One binder to pick: its symbol, its name, and its card count on the
+  right, in a row. It's a button styled as a light box that highlights
+  in the accent color when the mouse is over it.
+*/
+.move-target {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.move-target:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+}
+
+/* A full binder (or while a move is being saved): greyed out */
+.move-target:disabled { opacity: 0.5; cursor: default; }
+
+/* The binder's cover symbol (an empty spot of the same size if it has none) */
+.move-symbol {
+  display: block;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+}
+
+/* The binder's name takes the space in the middle; the count sits right */
+.move-name { flex: 1; font-weight: 600; }
+.move-count { font-size: 0.85rem; color: var(--muted); }
+
+/* "You don't have any other binders yet." */
+.move-none {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* The "Or move it to a new binder" part, below the list */
+.move-new { margin-top: 18px; }
+
+/* "OR MOVE IT TO A NEW BINDER": the small heading above the name box */
+.field-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The name box and the "New binder & move" button side by side.
+   ("flex-wrap" puts the button under the box on a narrow phone.) */
+.move-new-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The name box with its "5 / 12" counter on the right inside it */
+.name-field {
+  position: relative;
+  flex: 1 1 180px;
+}
+.name-input {
+  width: 100%;
+  padding: 9px 60px 9px 12px;     /* room on the right for the counter */
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.name-count {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* "Moving…", or a problem like "That binder is full" (in red) */
+.move-message {
+  min-height: 1.3em;
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.move-message.error { color: #d0453a; }
+
+/* The Cancel button along the bottom, on the right */
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* The window's buttons: rounded, the page's font */
+.dialog-button {
+  padding: 9px 18px;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.dialog-button:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.dialog-button:disabled { opacity: 0.6; cursor: default; }
+
+/* "New binder & move" is a main action, so it's filled with the accent color */
+.dialog-button.primary {
+  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.dialog-button.primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--accent); }

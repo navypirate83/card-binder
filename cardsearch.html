@@ -5,6 +5,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MTG Card Finder</title>
+  <!--
+    The site's icon (the open card binder), shown on the browser tab, in
+    bookmarks, and on a phone's home screen. Browsers pick the size they
+    need: 32px for tabs, 192px for Android, and "apple-touch-icon" (180px)
+    for iPhones and iPads.
+  -->
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/favicon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
   <!--
     This tiny script runs BEFORE the page draws, so the saved light/dark choice
@@ -145,6 +154,17 @@
       <h2 id="rulingsTitle" class="rulings-title">Notes and Rules</h2>
       <div id="rulingsBody"></div>
     </section>
+
+    <!--
+      Format legality (hidden until a card is shown): whether the card is
+      allowed in each way of playing Magic (Standard, Modern, Commander…).
+      It uses the same box look as Notes and Rules. cardsearch.js fills the
+      list from Scryfall's card details, one line per format.
+    -->
+    <section id="legality" class="rulings legality" aria-labelledby="legalityTitle" hidden>
+      <h2 id="legalityTitle" class="rulings-title">Format Legality</h2>
+      <ul id="legalityList" class="legality-list"></ul>
+    </section>
   </main>
 
   <!--
@@ -153,11 +173,13 @@
     say "current page", and cardsearch.css shows it as plain bold text.
     The middle link goes back to the binder you came from; cardsearch.js
     fills it in, and it stays hidden if no binder has been opened yet.
+    Links to binders only show when logged in (cardsearch.js decides).
   -->
   <footer class="site-footer">
     <nav aria-label="All pages">
       <ul class="footer-links">
-        <li><a href="index.html">My Binders</a></li>
+        <!-- Hidden unless logged in; cardsearch.js shows it -->
+        <li id="myBindersItem" hidden><a href="index.html">My Binders</a></li>
         <li id="backToBinderItem" hidden><a id="backToBinderLink" href="binder.html">Binder</a></li>
         <li><a href="cardsearch.html" aria-current="page">MTG Card Finder</a></li>
       </ul>

@@ -345,8 +345,18 @@ main {
 
 .color-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.color-grid.two-colors { grid-template-columns: repeat(5, 1fr); }
+
+.choice-group-title {
+  margin: 14px 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .color-choice {
@@ -432,7 +442,9 @@ main {
   }
   .cover-label { font-size: 0.7rem; padding: 4px; }
   .cover-plus { font-size: 2.6rem; }
-  .color-grid { grid-template-columns: repeat(4, 1fr); }
+  .color-grid { gap: 4px; }
+  .choice-name { font-size: 0.65rem; }
+  .choice-symbol { width: 30px; height: 30px; }
 }
 
 @media (min-width: 720px) {
@@ -629,6 +641,34 @@ body.dragging .drop-zone { display: grid; }
   color: var(--muted);
   pointer-events: none;
 }
+
+.pages-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-bottom: 16px;
+}
+.pages-input {
+  width: 90px;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.pages-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.pages-note {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.pages-note.error { color: var(--error); }
 
 .dialog-buttons.normal-order {
   flex-direction: row;

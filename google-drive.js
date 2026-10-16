@@ -183,13 +183,22 @@ async function signOutAndForget() {
   return true;
 }
 
+// Is someone using the app as a signed-in user? True when signed in to
+// Google in this tab, OR when their binders are still kept in this browser
+// (the Google pass may have run out, but they haven't signed out: Sign out
+// is what clears the binders). Pages use this to show or hide everything
+// to do with binders: the "My Binders" link, "Add to binder", "Sign out".
+function isLoggedIn() {
+  return isSignedIn() || loadBinderList().length > 0;
+}
+
 // Set up the "Sign out" link in the page's footer. It only shows when
-// someone is signed in (or binders are still kept in this browser).
+// someone is logged in (see isLoggedIn).
 // "afterSignOut" is what the page does once signed out.
 function setUpFooterSignOut(afterSignOut) {
   const link = document.getElementById('footerSignOut');
   if (!link) return;
-  link.hidden = !(isSignedIn() || loadBinderList().length > 0);
+  link.hidden = !isLoggedIn();
   link.addEventListener('click', async () => {
     link.disabled = true;
     link.textContent = 'Signing out…';
@@ -322,18 +331,20 @@ async function createBinderFile(name, data, color = null, order = null) {
   return response.json();
 }
 
-// Change a binder file's details: its name, cover color and/or its place
-// in the shelf's order. Only the details passed in are changed:
+// Change a binder file's details: its name, cover color, number of pages
+// and/or its place in the shelf's order. Only the details passed in change:
 //   { name: "Modern Decks" }      renames it (the file becomes "Modern Decks.json")
 //   { color: "R" } / { color: null } sets or removes the cover symbol
+//   { pages: 20 }                 how many pages the binder has
 //   { order: 3 }                  its spot on the shelf (0 = first)
-// The color and order are small labels ("appProperties") on the file.
-async function updateBinderDetails(fileId, { name, color, order } = {}) {
+// The color, pages and order are small labels ("appProperties") on the file.
+async function updateBinderDetails(fileId, { name, color, pages, order } = {}) {
   const details = {};
   const labels = {};
   if (name !== undefined) details.name = `${name}.json`;
   if (color !== undefined) labels.color = color;            // null removes the label
-  if (order !== undefined) labels.order = String(order);    // labels are always text
+  if (pages !== undefined) labels.pages = String(pages);    // labels are always text
+  if (order !== undefined) labels.order = String(order);
   if (Object.keys(labels).length) details.appProperties = labels;
   await driveRequest(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, {
     method: 'PATCH',

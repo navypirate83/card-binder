@@ -12,15 +12,24 @@
    have changes that haven't reached Google Drive yet.
    ========================================================================= */
 
-// How many pages a binder has, and how many pockets on each page (4 x 4).
-// Change these numbers here to resize the binders; every page uses them.
-const TOTAL_PAGES = 10;
+// How many pockets on each page (4 x 4).
 const POCKETS_PER_PAGE = 16;
+
+// How many pages a binder has. Each binder has its own number of pages
+// (changed in the Binder properties window on the My Binders page):
+//  - DEFAULT_PAGES: what a new binder starts with
+//  - MAX_PAGES:     the most a binder can have (50 pages = 800 cards). It's
+//                   a "safe" limit: the binder page builds every pocket at
+//                   once, and much bigger binders would make it slow.
+// A binder can't have fewer pages than it needs for its cards (see
+// minPagesFor).
+const DEFAULT_PAGES = 10;
+const MAX_PAGES = 50;
 
 // The names things are saved under in localStorage:
 //  - binderCards:<id>  one binder's cards (<id> is its Google Drive file id)
 //  - binderDirty:<id>  set when that binder has changes not yet in Drive
-//  - binderList        the list of the user's binders: [{ id, name, color }, ...]
+//  - binderList        the list of the user's binders: [{ id, name, color, pages }, ...]
 //  - lastBinderId      the binder opened most recently
 const CARDS_KEY_PREFIX = 'binderCards:';
 const DIRTY_KEY_PREFIX = 'binderDirty:';
@@ -34,17 +43,43 @@ const OLD_SINGLE_BINDER_KEY = 'binderCards';
 // The name written into binder files, so we can recognize our own files.
 const FILE_APP_NAME = 'mtg-card-binder';
 
-// Magic's color symbols, for a binder's cover. Each has the one-letter code
-// Magic uses (U is blue, because B is black), a name, and its symbol
-// picture from Scryfall (the same place the card pictures come from).
+// Magic's color symbols, for a binder's cover. Each has:
+//  - code:   the letters Magic uses (U is blue, because B is black);
+//            two letters for a two-color symbol, e.g. "WU" = white and blue
+//  - name:   the full name, read out by screen readers and shown on hover
+//  - short:  the word shown under the symbol in the symbol choices
+//  - group:  'single' (one color, colorless or planeswalker) or 'two' (two colors)
+//  - symbol: its picture from Scryfall (where the card pictures come from)
+// The two-color ones are Magic's "hybrid" symbols, one for each pair of
+// colors. Their short names are the Magic guild names for those pairs
+// (Azorius is white-blue, and so on), since "White-Blue" won't fit.
+const SYMBOL_URL = 'https://svgs.scryfall.io/card-symbols/';
 const MANA_COLORS = [
-  { code: 'W', name: 'White',     symbol: 'https://svgs.scryfall.io/card-symbols/W.svg' },
-  { code: 'U', name: 'Blue',      symbol: 'https://svgs.scryfall.io/card-symbols/U.svg' },
-  { code: 'B', name: 'Black',     symbol: 'https://svgs.scryfall.io/card-symbols/B.svg' },
-  { code: 'R', name: 'Red',       symbol: 'https://svgs.scryfall.io/card-symbols/R.svg' },
-  { code: 'G', name: 'Green',     symbol: 'https://svgs.scryfall.io/card-symbols/G.svg' },
-  { code: 'C', name: 'Colorless', symbol: 'https://svgs.scryfall.io/card-symbols/C.svg' }
-];
+  { code: 'W',  name: 'White',     short: 'White',     group: 'single' },
+  { code: 'U',  name: 'Blue',      short: 'Blue',      group: 'single' },
+  { code: 'B',  name: 'Black',     short: 'Black',     group: 'single' },
+  { code: 'R',  name: 'Red',       short: 'Red',       group: 'single' },
+  { code: 'G',  name: 'Green',     short: 'Green',     group: 'single' },
+  { code: 'C',  name: 'Colorless', short: 'Colorless', group: 'single' },
+  // The planeswalker symbol (not a color, but a favorite for a binder cover).
+  // It uses our own copy in the icons folder: Scryfall's is a black shape
+  // with no circle, which would vanish on a black cover.
+  { code: 'PW', name: 'Planeswalker', short: 'Planeswalker', group: 'single',
+    symbol: 'icons/planeswalker.svg' },
+  // Neighboring colors on Magic's color wheel ("allied" pairs)...
+  { code: 'WU', name: 'White and Blue',  short: 'Azorius',  group: 'two' },
+  { code: 'UB', name: 'Blue and Black',  short: 'Dimir',    group: 'two' },
+  { code: 'BR', name: 'Black and Red',   short: 'Rakdos',   group: 'two' },
+  { code: 'RG', name: 'Red and Green',   short: 'Gruul',    group: 'two' },
+  { code: 'GW', name: 'Green and White', short: 'Selesnya', group: 'two' },
+  // ...and colors across the wheel from each other ("enemy" pairs).
+  { code: 'WB', name: 'White and Black', short: 'Orzhov',   group: 'two' },
+  { code: 'UR', name: 'Blue and Red',    short: 'Izzet',    group: 'two' },
+  { code: 'BG', name: 'Black and Green', short: 'Golgari',  group: 'two' },
+  { code: 'RW', name: 'Red and White',   short: 'Boros',    group: 'two' },
+  { code: 'GU', name: 'Green and Blue',  short: 'Simic',    group: 'two' }
+// Each symbol's picture is Scryfall's, unless the entry names its own.
+].map((color) => ({ ...color, symbol: color.symbol || `${SYMBOL_URL}${color.code}.svg` }));
 
 // Find a color by its code ("U" → the Blue entry), or null if the code
 // isn't one of the six (including no color at all).
@@ -125,6 +160,57 @@ function binderName(id) {
   return found ? found.name : 'Binder';
 }
 
+// The next free default name for a new binder: the lowest "Binder N" not
+// already used ("Binder 1", "Binder 2", ...).
+function nextBinderName() {
+  const used = new Set(loadBinderList().map((b) => b.name));
+  let number = 1;
+  while (used.has(`Binder ${number}`)) number++;
+  return `Binder ${number}`;
+}
+
+// A binder's number of pages from that list (10 if it doesn't say).
+function binderPages(id) {
+  const found = loadBinderList().find((b) => b.id === id);
+  return found ? cleanPageCount(found.pages) : DEFAULT_PAGES;
+}
+
+// Turn any page count (a number, or text from a Drive label) into a safe
+// whole number from 1 to MAX_PAGES. Anything unreadable becomes 10.
+function cleanPageCount(pages) {
+  const number = Math.round(Number(pages));
+  if (!Number.isFinite(number) || number < 1) return DEFAULT_PAGES;
+  return Math.min(number, MAX_PAGES);
+}
+
+// The fewest pages that can hold this many cards (16 per page, at least 1).
+// A binder can't be made smaller than this.
+function minPagesFor(cardCount) {
+  return Math.max(1, Math.ceil(cardCount / POCKETS_PER_PAGE));
+}
+
+// Fit a binder's cards into a new (smaller) number of pages: any card on a
+// page that's going away moves into the first empty pocket on the pages
+// that stay. Cards already on those pages don't move. Returns the new set
+// of cards. (Only call this with at least minPagesFor(...) pages, so
+// there's always room.)
+function fitCardsIntoPages(cards, pages) {
+  const kept = {};
+  const homeless = [];
+  for (const [key, card] of Object.entries(cards)) {
+    const page = Number(key.split('-')[0]);
+    if (page <= pages) kept[key] = card;
+    else homeless.push([key, card]);
+  }
+  // Move the homeless cards in their old order (page by page, pocket by pocket).
+  homeless.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+  for (const [, card] of homeless) {
+    const spot = firstEmptyPocket(kept, pages);
+    if (spot) kept[pocketKey(spot.page, spot.slot)] = card;
+  }
+  return kept;
+}
+
 // A binder's cover color code from that list ("U" etc.), or null for none.
 function binderColor(id) {
   const found = loadBinderList().find((b) => b.id === id);
@@ -133,13 +219,14 @@ function binderColor(id) {
 
 // The whole binder as it's written to a Google Drive file (or a .JSON
 // download): a little label saying what it is, its name, its cover
-// color, and its cards.
+// color, its number of pages, and its cards.
 function binderFileData(id) {
   return {
     app: FILE_APP_NAME,
     version: 1,
     name: binderName(id),
     color: binderColor(id),
+    pages: binderPages(id),
     savedAt: new Date().toISOString(),
     cards: loadBinder(id)
   };
@@ -164,10 +251,11 @@ function clearAllBinders() {
   storageRemove(LAST_BINDER_KEY);
 }
 
-// Find the first empty pocket, going page by page, pocket by pocket.
-// Returns { page, slot }, or null if every pocket already holds a card.
-function firstEmptyPocket(cards) {
-  for (let page = 1; page <= TOTAL_PAGES; page++) {
+// Find the first empty pocket, going page by page, pocket by pocket, in a
+// binder with this many pages. Returns { page, slot }, or null if every
+// pocket already holds a card.
+function firstEmptyPocket(cards, pages = DEFAULT_PAGES) {
+  for (let page = 1; page <= pages; page++) {
     for (let slot = 1; slot <= POCKETS_PER_PAGE; slot++) {
       if (!cards[pocketKey(page, slot)]) return { page, slot };
     }
@@ -188,8 +276,10 @@ function isValidCard(card) {
     (card.lang === undefined || typeof card.lang === 'string');
 }
 
-// Keep only the valid cards in pockets that exist (like "3-5").
-// Returns { cards, skipped } where "skipped" counts what was thrown away.
+// Keep only the valid cards in pockets that can exist (like "3-5", on any
+// page up to the 50-page limit; the binder's own page count is checked
+// where it's known). Returns { cards, skipped } where "skipped" counts what
+// was thrown away.
 function cleanCards(incoming) {
   const cards = {};
   let skipped = 0;
@@ -200,7 +290,7 @@ function cleanCards(incoming) {
     const match = /^(\d+)-(\d+)$/.exec(key);
     const page = match ? Number(match[1]) : 0;
     const slot = match ? Number(match[2]) : 0;
-    const pocketExists = page >= 1 && page <= TOTAL_PAGES && slot >= 1 && slot <= POCKETS_PER_PAGE;
+    const pocketExists = page >= 1 && page <= MAX_PAGES && slot >= 1 && slot <= POCKETS_PER_PAGE;
     if (pocketExists && isValidCard(card)) cards[pocketKey(page, slot)] = card;
     else skipped++;
   }

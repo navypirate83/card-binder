@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MTG Card Finder</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/favicon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 
   <script>
     (function () {
@@ -110,12 +113,17 @@
       <h2 id="rulingsTitle" class="rulings-title">Notes and Rules</h2>
       <div id="rulingsBody"></div>
     </section>
+
+    <section id="legality" class="rulings legality" aria-labelledby="legalityTitle" hidden>
+      <h2 id="legalityTitle" class="rulings-title">Format Legality</h2>
+      <ul id="legalityList" class="legality-list"></ul>
+    </section>
   </main>
 
   <footer class="site-footer">
     <nav aria-label="All pages">
       <ul class="footer-links">
-        <li><a href="index.html">My Binders</a></li>
+        <li id="myBindersItem" hidden><a href="index.html">My Binders</a></li>
         <li id="backToBinderItem" hidden><a id="backToBinderLink" href="binder.html">Binder</a></li>
         <li><a href="cardsearch.html" aria-current="page">MTG Card Finder</a></li>
       </ul>

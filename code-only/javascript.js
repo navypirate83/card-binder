@@ -33,6 +33,9 @@ themeSwitch.setAttribute('aria-checked', String(root.getAttribute('data-theme') 
 
 const binderCards = loadBinder(BINDER_ID);
 
+const highestUsedPage = Math.max(0, ...Object.keys(binderCards).map((key) => Number(key.split('-')[0])));
+const TOTAL_PAGES = Math.min(Math.max(binderPages(BINDER_ID), highestUsedPage), MAX_PAGES);
+
 function searchLinkFor(page, slot, card) {
   const params = new URLSearchParams();
   if (card) {
@@ -336,6 +339,7 @@ const EDGE_ZONE = 18;
 const EDGE_WAIT_MS = 550;
 
 const trash = document.getElementById('binderTrash');
+const moveCircle = document.getElementById('binderMove');
 const TRASH_REACH = 44;
 
 let drag = null;
@@ -393,6 +397,7 @@ function beginDrag(pocket, x, y) {
     grabY: y - box.top,
     target: null,
     overTrash: false,
+    overMove: false,
     edge: 0
   };
 
@@ -406,11 +411,13 @@ function moveDrag(x, y) {
   drag.ghost.style.transform =
     `translate(${x - drag.grabX}px, ${y - drag.grabY}px) rotate(3deg) scale(1.06)`;
 
-  drag.overTrash = isOverTrash(x, y);
+  drag.overTrash = isOverCircle(trash, x, y);
+  drag.overMove = !drag.overTrash && isOverCircle(moveCircle, x, y);
   trash.classList.toggle('active', drag.overTrash);
-  drag.ghost.classList.toggle('over-trash', drag.overTrash);
+  moveCircle.classList.toggle('active', drag.overMove);
+  drag.ghost.classList.toggle('over-trash', drag.overTrash || drag.overMove);
 
-  const target = drag.overTrash ? null : pocketAt(x, y);
+  const target = drag.overTrash || drag.overMove ? null : pocketAt(x, y);
   if (target !== drag.target) {
     if (drag.target) drag.target.classList.remove('drop-target');
     if (target && keyOf(target) !== drag.fromKey) target.classList.add('drop-target');
@@ -440,8 +447,8 @@ function turnFromEdge() {
   edgeTimer = setTimeout(turnFromEdge, TURN_MS + EDGE_WAIT_MS);
 }
 
-function isOverTrash(x, y) {
-  const box = trash.getBoundingClientRect();
+function isOverCircle(circle, x, y) {
+  const box = circle.getBoundingClientRect();
   if (box.width === 0) return false;
   const centerX = box.left + box.width / 2;
   const centerY = box.top + box.height / 2;
@@ -450,11 +457,17 @@ function isOverTrash(x, y) {
 
 function endDrag(x, y) {
   if (!drag) return;
-  const removing = isOverTrash(x, y);
-  const target = removing ? null : pocketAt(x, y);
+  const removing = isOverCircle(trash, x, y);
+  const toAnotherBinder = !removing && isOverCircle(moveCircle, x, y);
+  const target = removing || toAnotherBinder ? null : pocketAt(x, y);
   const fromKey = drag.fromKey;
   const toKey = target ? keyOf(target) : null;
   finishDrag();
+
+  if (toAnotherBinder) {
+    openMoveDialog(fromKey);
+    return;
+  }
 
   if (removing) {
     const removed = binderCards[fromKey];
@@ -494,6 +507,7 @@ function finishDrag() {
   drag.ghost.remove();
   if (drag.target) drag.target.classList.remove('drop-target');
   trash.classList.remove('active');
+  moveCircle.classList.remove('active');
   const source = pocketElement(drag.fromKey);
   if (source) source.classList.remove('drag-source');
   clearTimeout(edgeTimer);
@@ -688,6 +702,11 @@ const DRIVE_SAVE_DELAY_MS = 1200;
 // The waiting timer for the next save to Drive.
 let driveSaveTimer = null;
 
+// A note to show in the top bar once this binder's change is saved
+// (like "✓ Moved to Blue, page 1"), instead of the usual "✓ Saved to Drive".
+// Set after moving a card to another binder.
+let savedNote = null;
+
 // Show the save status in the top bar. "state" picks the look:
 // 'saved', 'saving', 'error', or 'signed-out' (which shows the Connect button).
 function setSyncStatus(state, text) {
@@ -721,7 +740,10 @@ async function syncWithDrive() {
     // (Skipped while a card is being dragged, so it doesn't vanish mid-drag;
     // the next save brings everything into line.)
     if (!drag && JSON.stringify(cards) !== before) replaceAllCards(cards);
-    setSyncStatus('saved', '✓ Saved to Drive');
+    // Usually "✓ Saved to Drive"; after moving a card to another binder,
+    // say where it went instead (see MOVING A CARD TO ANOTHER BINDER).
+    setSyncStatus('saved', savedNote || '✓ Saved to Drive');
+    savedNote = null;
   } catch (err) {
     if (err.signedOut) setSyncStatus('signed-out', 'Not saved to Drive yet');
     else setSyncStatus('error', 'Couldn\'t reach Google Drive');
@@ -758,3 +780,201 @@ if (BINDER_ID) syncWithDrive();
 // The "Sign out" link at the bottom right (google-drive.js saves any
 // unsaved changes first). Afterwards, go to the sign-in screen.
 setUpFooterSignOut(() => { location.href = 'index.html'; });
+
+/* =====================================================================
+   MOVING A CARD TO ANOTHER BINDER
+   Drop a card on the blue "move" circle to open the "Move card to…"
+   window. Pick one of your other binders and the card goes into that
+   binder's first empty pocket (and leaves this one). Or type a name and
+   click "New binder & move" to make a new binder with just this card.
+   The other binder is fetched fresh from Google Drive first, so cards
+   added to it on another computer aren't overwritten.
+   ===================================================================== */
+
+const moveCardDialog  = document.getElementById('moveCardDialog');
+const moveCardText    = document.getElementById('moveCardText');
+const moveTargets     = document.getElementById('moveTargets');
+const moveNewBinder   = document.getElementById('moveNewBinder');
+const moveNewName     = document.getElementById('moveNewName');
+const moveNewCount    = document.getElementById('moveNewCount');
+const moveToNewButton = document.getElementById('moveToNewButton');
+const moveMessage     = document.getElementById('moveMessage');
+
+// How many cards fit in a binder: its pages x 16 pockets (160 for 10 pages).
+function binderCapacity(id) {
+  return binderPages(id) * POCKETS_PER_PAGE;
+}
+
+// The pocket ("3-5") of the card being moved, while the window is open.
+let movingKey = null;
+
+// Show a message in the window (red if it's a problem).
+function setMoveMessage(text, isError = false) {
+  moveMessage.textContent = text;
+  moveMessage.classList.toggle('error', isError);
+}
+
+// While a move is being saved, grey out every button so it can't be
+// clicked twice.
+function setMoveBusy(busy) {
+  for (const button of moveCardDialog.querySelectorAll('button, input')) button.disabled = busy;
+  if (!busy) refreshMoveTargets();   // re-grey any full binders
+}
+
+// Keep the "5 / 12" counter next to the new binder's name box up to date.
+function showMoveNameCount() {
+  moveNewCount.textContent = `${moveNewName.value.length} / ${moveNewName.maxLength}`;
+}
+moveNewName.addEventListener('input', showMoveNameCount);
+
+// Build the list of the user's other binders: one button each, with its
+// cover symbol, name and card count. Full binders can't be picked.
+function refreshMoveTargets() {
+  moveTargets.replaceChildren();
+  const others = loadBinderList().filter((b) => b.id !== BINDER_ID);
+  if (others.length === 0) {
+    const none = document.createElement('p');
+    none.className = 'move-none';
+    none.textContent = 'You don\'t have any other binders yet.';
+    moveTargets.appendChild(none);
+  }
+  for (const other of others) {
+    const count = Object.keys(loadBinder(other.id)).length;
+    const full = count >= binderCapacity(other.id);
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'move-target';
+    button.disabled = full;
+
+    // The binder's cover symbol (or an empty spot if it has none).
+    const color = manaColor(other.color);
+    const symbol = document.createElement(color ? 'img' : 'span');
+    symbol.className = 'move-symbol';
+    if (color) { symbol.src = color.symbol; symbol.alt = ''; }
+
+    const name = document.createElement('span');
+    name.className = 'move-name';
+    name.textContent = other.name;
+
+    const info = document.createElement('span');
+    info.className = 'move-count';
+    info.textContent = full ? 'Full' : `${count} card${count === 1 ? '' : 's'}`;
+
+    button.append(symbol, name, info);
+    button.addEventListener('click', () => moveCardTo(other.id));
+    moveTargets.appendChild(button);
+  }
+}
+
+// Open the window for the card in a pocket.
+function openMoveDialog(key) {
+  const card = binderCards[key];
+  if (!card) return;
+  movingKey = key;
+  moveCardText.textContent = `Pick a binder for "${card.name}". It goes into that binder's first empty pocket.`;
+  setMoveMessage('');
+  refreshMoveTargets();
+
+  // The "new binder" part: its name box starts with the next free name.
+  moveNewName.value = nextBinderName();   // binder-storage.js
+  showMoveNameCount();
+
+  moveCardDialog.returnValue = '';
+  moveCardDialog.showModal();
+  refreshMoveCountsFromDrive();
+}
+
+// The card counts in the list come from this browser's copies, which can
+// be out of date (a binder may have been filled on another computer). So
+// once the window is open, fetch each other binder from Google Drive in the
+// background and redraw the list with the real counts (and "Full" labels).
+// If that isn't possible right now (not signed in), the list stays as is;
+// the move itself always fetches the target binder fresh anyway.
+async function refreshMoveCountsFromDrive() {
+  if (!isSignedIn()) return;
+  const others = loadBinderList().filter((b) => b.id !== BINDER_ID);
+  await Promise.all(others.map((b) => syncBinder(b.id).catch(() => { /* keep the old count */ })));
+  // Only redraw if the window is still open and no move is in progress.
+  if (moveCardDialog.open && !moveToNewButton.disabled) refreshMoveTargets();
+}
+
+// Make sure we're signed in to Google before saving to another binder
+// (opens Google's sign-in window if the sign-in has run out). This runs
+// straight from a click, which browsers require for pop-up windows.
+async function ensureSignedIn() {
+  if (!isSignedIn()) await signInWithGoogle();   // google-drive.js
+}
+
+// Move the card into another binder's first empty pocket.
+async function moveCardTo(targetId) {
+  const card = binderCards[movingKey];
+  if (!card) return;
+  setMoveBusy(true);
+  setMoveMessage('Moving…');
+  try {
+    await ensureSignedIn();
+    // Get the other binder's latest cards from Drive (or send it any
+    // changes this browser has for it first), then find its first gap.
+    const cards = await syncBinder(targetId);
+    const spot = firstEmptyPocket(cards, binderPages(targetId));
+    if (!spot) {
+      setMoveBusy(false);
+      setMoveMessage(`"${binderName(targetId)}" is full.`, true);
+      return;
+    }
+    cards[pocketKey(spot.page, spot.slot)] = card;
+    saveBinder(cards, targetId);   // keep it in this browser (marked "needs saving")...
+    await syncBinder(targetId);    // ...and save it to Drive
+    takeMovedCardOut(`✓ Moved to ${binderName(targetId)}, page ${spot.page}`);
+  } catch (err) {
+    setMoveBusy(false);
+    setMoveMessage(err.message, true);
+  }
+}
+
+// Make a new binder (with the typed name, or the next free "Binder N")
+// holding just this card, in its first pocket.
+moveToNewButton.addEventListener('click', async () => {
+  const card = binderCards[movingKey];
+  if (!card) return;
+  const binders = loadBinderList();
+  const name = moveNewName.value.trim().slice(0, moveNewName.maxLength) || nextBinderName();
+  setMoveBusy(true);
+  setMoveMessage('Making the new binder…');
+  try {
+    await ensureSignedIn();
+    const cards = { [pocketKey(1, 1)]: card };
+    // It goes at the end of the shelf on the My Binders page.
+    const file = await createBinderFile(name,
+      { app: FILE_APP_NAME, version: 1, name, color: null, cards }, null, binders.length);
+    binders.push({ id: file.id, name, color: null, pages: DEFAULT_PAGES });
+    saveBinderList(binders);
+    saveBinder(cards, file.id, { dirty: false });
+    takeMovedCardOut(`✓ Moved to new binder ${name}`);
+  } catch (err) {
+    setMoveBusy(false);
+    setMoveMessage(err.message, true);
+  }
+});
+
+// The card is safely in the other binder: take it out of this one, close
+// the window, and save this binder too.
+function takeMovedCardOut(note) {
+  delete binderCards[movingKey];
+  saveBinder(binderCards);
+  refreshPocket(movingKey);       // its pocket goes back to a "+"
+  movingKey = null;
+  setMoveBusy(false);
+  moveCardDialog.close('done');
+  savedNote = note;               // shown in the top bar once saved
+  scheduleDriveSave();
+}
+
+// Cancel (or Escape) closes the window without moving anything.
+moveCardDialog.addEventListener('close', () => { movingKey = null; });
+
+// Clicking on the dimmed area outside the window closes it too.
+moveCardDialog.addEventListener('click', (event) => {
+  if (event.target === moveCardDialog) moveCardDialog.close('cancel');
+});

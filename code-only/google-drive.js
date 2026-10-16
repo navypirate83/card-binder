@@ -125,10 +125,14 @@ async function signOutAndForget() {
   return true;
 }
 
+function isLoggedIn() {
+  return isSignedIn() || loadBinderList().length > 0;
+}
+
 function setUpFooterSignOut(afterSignOut) {
   const link = document.getElementById('footerSignOut');
   if (!link) return;
-  link.hidden = !(isSignedIn() || loadBinderList().length > 0);
+  link.hidden = !isLoggedIn();
   link.addEventListener('click', async () => {
     link.disabled = true;
     link.textContent = 'Signing out…';
@@ -236,11 +240,12 @@ async function createBinderFile(name, data, color = null, order = null) {
   return response.json();
 }
 
-async function updateBinderDetails(fileId, { name, color, order } = {}) {
+async function updateBinderDetails(fileId, { name, color, pages, order } = {}) {
   const details = {};
   const labels = {};
   if (name !== undefined) details.name = `${name}.json`;
   if (color !== undefined) labels.color = color;
+  if (pages !== undefined) labels.pages = String(pages);
   if (order !== undefined) labels.order = String(order);
   if (Object.keys(labels).length) details.appProperties = labels;
   await driveRequest(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, {

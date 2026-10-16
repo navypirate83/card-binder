@@ -260,7 +260,7 @@ main {
 }
 
 /*
-  The shelf: a grid with 3 columns (so 9 binders make a 3 x 3 square).
+  The shelf: a grid with 3 columns (more binders just add more rows).
   Each column is up to 150px wide, and "justify-content: center" keeps the
   whole grid in the middle of the page. Binders fill in left to right,
   top to bottom, so the first ones sit in the upper center.
@@ -476,12 +476,27 @@ main {
   border: none;
 }
 
-/* The choices in a row of 7 (None + 6 colors). On phones they wrap
-   into rows of 4 (see the phone rules further down). */
+/*
+  The choices are in two groups (see buildColorChoices in landing.js):
+  - the single symbols (None, the five colors, Colorless, Planeswalker):
+    two rows of 4
+  - the ten two-color symbols, under a "Two colors" heading: two rows of 5
+*/
 .color-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.color-grid.two-colors { grid-template-columns: repeat(5, 1fr); }
+
+/* The small "Two colors" heading between the two groups */
+.choice-group-title {
+  margin: 14px 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 /*
@@ -587,8 +602,10 @@ main {
   }
   .cover-label { font-size: 0.7rem; padding: 4px; }
   .cover-plus { font-size: 2.6rem; }
-  /* The "New binder" choices wrap into rows of 4 */
-  .color-grid { grid-template-columns: repeat(4, 1fr); }
+  /* The symbol choices: smaller names and gaps so 5 fit across a phone */
+  .color-grid { gap: 4px; }
+  .choice-name { font-size: 0.65rem; }
+  .choice-symbol { width: 30px; height: 30px; }
 }
 
 /* On wider screens, give the title a little more size (like the other pages) */
@@ -872,6 +889,38 @@ body.dragging .drop-zone { display: grid; }
   color: var(--muted);
   pointer-events: none;
 }
+
+/* The Pages row: a small number box with a note beside it explaining the
+   limits ("Holds 160 cards · 3 to 50 pages"). The note wraps under the box
+   on a narrow phone. */
+.pages-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-bottom: 16px;
+}
+.pages-input {
+  width: 90px;
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.pages-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.pages-note {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+/* The note turns red while the number is outside the allowed range */
+.pages-note.error { color: var(--error); }
 
 /* The Delete window's buttons show in normal order (No, then Yes) */
 .dialog-buttons.normal-order {

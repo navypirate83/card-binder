@@ -477,6 +477,45 @@ main {
   color: var(--muted);
 }
 
+.legality { margin-top: 16px; }
+
+.legality-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 14px 16px;
+  list-style: none;
+}
+
+.legality-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+
+.legality-status {
+  flex-shrink: 0;
+  min-width: 84px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-align: center;
+  text-transform: uppercase;
+  border-radius: 999px;
+}
+.legality-status.legal      { color: #ffffff; background: #2f855a; }
+.legality-status.banned     { color: #ffffff; background: #c0392b; }
+.legality-status.restricted { color: #1e1c19; background: #e0a330; }
+.legality-status.not_legal  { color: var(--muted); background: var(--surface-hover); }
+
+@media (max-width: 480px) {
+  .legality-list { grid-template-columns: 1fr; }
+}
+
 @media (min-width: 720px) {
   main { max-width: 760px; }
   .topbar h1 { font-size: 1.5rem; }

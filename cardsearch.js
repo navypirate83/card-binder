@@ -52,10 +52,17 @@ const versionSelect = document.getElementById('versionSelect');
 const languageSelect = document.getElementById('languageSelect');
 const rulingsBox    = document.getElementById('rulings');
 const rulingsBody   = document.getElementById('rulingsBody');
+const legalityBox   = document.getElementById('legality');
+const legalityList  = document.getElementById('legalityList');
 
 /* =====================================================================
    APP STATE
    ===================================================================== */
+
+// Is someone logged in? (isLoggedIn is in google-drive.js: signed in to
+// Google, or their binders are still in this browser.) If not, this page is
+// just a card search: no links to binders, and no "Add to binder" button.
+const LOGGED_IN = isLoggedIn();
 
 // The app's "memory" of what is currently happening.
 const state = {
@@ -585,6 +592,8 @@ function resetCardDetails() {
   cardInfo.innerHTML = '';
   rulingsBox.hidden = true;
   rulingsBody.innerHTML = '';
+  legalityBox.hidden = true;
+  legalityList.replaceChildren();
 }
 
 /* =====================================================================
@@ -804,13 +813,79 @@ function selectPrint(print) {
   loadLanguages(print);         // fill the Language picker (in the background)
   flipButton.hidden = !isDoubleSided(print);
   shareButton.hidden = false;   // a card is showing, so it can be shared...
-  binderButton.hidden = false;  // ...and added to the binder
+  binderButton.hidden = !LOGGED_IN;   // ...and added to a binder (only when logged in)
   showFace(0);
   cardInfo.innerHTML =
     `<strong>${escapeHtml(print.name)}</strong><br>` +
     `${escapeHtml(print.set_name)} · #${escapeHtml(print.collector_number)}` +
     (print.artist ? ` · Illustrated by ${escapeHtml(print.artist)}` : '') +
     `<br><a href="${escapeHtml(print.scryfall_uri)}" target="_blank" rel="noopener">View on Scryfall</a>`;
+  showLegalities(print);
+}
+
+/* =====================================================================
+   FORMAT LEGALITY
+   Scryfall's card details include "legalities": for each format (way of
+   playing), whether the card is "legal", "not_legal", "banned" or
+   "restricted" (allowed, but only one copy). It's the same for every
+   printing of a card.
+   ===================================================================== */
+
+// The formats to show, in this order, with the names people know them by.
+// (Scryfall uses short codes like "paupercommander"; the names come from
+// Scryfall's search help page.) Any format Scryfall adds later that isn't
+// listed here still shows, at the end, under its code.
+const FORMAT_NAMES = [
+  ['standard', 'Standard'],          ['future', 'Future Standard'],
+  ['pioneer', 'Pioneer'],            ['modern', 'Modern'],
+  ['legacy', 'Legacy'],              ['vintage', 'Vintage'],
+  ['pauper', 'Pauper'],              ['commander', 'Commander'],
+  ['oathbreaker', 'Oathbreaker'],    ['paupercommander', 'Pauper Commander'],
+  ['duel', 'Duel Commander'],        ['predh', 'PreDH'],
+  ['tlr', 'Tiny Leaders: Reborn'],   ['brawl', 'Brawl'],
+  ['standardbrawl', 'Standard Brawl'], ['competitivebrawl', 'Competitive Brawl'],
+  ['historic', 'Historic'],          ['timeless', 'Timeless'],
+  ['alchemy', 'Alchemy'],            ['gladiator', 'Gladiator'],
+  ['penny', 'Penny Dreadful'],       ['premodern', 'Premodern'],
+  ['oldschool', 'Old School 93/94']
+];
+
+// The words shown on each status label.
+const LEGALITY_WORDS = {
+  legal: 'Legal',
+  not_legal: 'Not Legal',
+  banned: 'Banned',
+  restricted: 'Restricted'
+};
+
+// Fill the Format Legality box for a printing: one line per format, with
+// the format's name and a colored status label. (Built with
+// textContent, never innerHTML, so nothing from outside can sneak in code.)
+function showLegalities(print) {
+  const legalities = print.legalities || {};
+  legalityList.replaceChildren();
+
+  // Our list first, then any formats we don't know the name of yet.
+  const known = new Set(FORMAT_NAMES.map(([code]) => code));
+  const formats = [
+    ...FORMAT_NAMES.filter(([code]) => code in legalities),
+    ...Object.keys(legalities).filter((code) => !known.has(code)).map((code) => [code, code])
+  ];
+
+  for (const [code, name] of formats) {
+    const status = legalities[code];
+    const item = document.createElement('li');
+    const label = document.createElement('span');
+    label.textContent = name;
+    const tag = document.createElement('span');
+    // The status picks the label's color (see cardsearch.css). Unknown
+    // statuses get the grey "not legal" look.
+    tag.className = `legality-status ${LEGALITY_WORDS[status] ? status : 'not_legal'}`;
+    tag.textContent = LEGALITY_WORDS[status] || String(status);
+    item.append(label, tag);
+    legalityList.appendChild(item);
+  }
+  legalityBox.hidden = formats.length === 0;
 }
 
 // Show the front (0) or back (1) of the current printing, in the chosen
@@ -1024,8 +1099,12 @@ shareButton.addEventListener('click', async () => {
 // opened most recently. (null = no binder opened yet in this browser.)
 const targetBinderId = currentBinderId() || storageGet(LAST_BINDER_KEY) || null;
 
-// Show the footer link back to that binder, with its name.
-if (targetBinderId) {
+// When logged in (LOGGED_IN, near the top of this file), show the
+// footer's "My Binders" link.
+document.getElementById('myBindersItem').hidden = !LOGGED_IN;
+
+// Show the footer link back to that binder, with its name (logged in only).
+if (LOGGED_IN && targetBinderId) {
   const backLink = document.getElementById('backToBinderLink');
   backLink.textContent = binderName(targetBinderId);
   backLink.href = `binder.html?binder=${encodeURIComponent(targetBinderId)}`;
@@ -1041,7 +1120,9 @@ const binderTarget = (() => {
   const params = new URLSearchParams(location.search);
   const page = parseInt(params.get('binderPage'), 10);
   const slot = parseInt(params.get('binderSlot'), 10);
-  const valid = page >= 1 && page <= TOTAL_PAGES && slot >= 1 && slot <= POCKETS_PER_PAGE;
+  // The pocket must exist in that binder (binders have their own number of pages).
+  const pages = targetBinderId ? binderPages(targetBinderId) : MAX_PAGES;
+  const valid = page >= 1 && page <= pages && slot >= 1 && slot <= POCKETS_PER_PAGE;
   return valid ? { page, slot } : null;
 })();
 
@@ -1059,14 +1140,14 @@ function binderImageFor(print, face) {
 // page then saves the change to Google Drive.)
 binderButton.addEventListener('click', () => {
   const print = state.currentPrint;
-  if (!print) return;
+  if (!print || !LOGGED_IN) return;   // (the button is hidden when not logged in anyway)
   if (!targetBinderId) {
     setHint('Open one of your binders first (My Binders, at the bottom of the page).', true);
     return;
   }
 
   const cards = loadBinder(targetBinderId);
-  const pocket = binderTarget || firstEmptyPocket(cards);
+  const pocket = binderTarget || firstEmptyPocket(cards, binderPages(targetBinderId));
   if (!pocket) {
     setHint('Your binder is full. Click a card in the binder to replace it.', true);
     return;

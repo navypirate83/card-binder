@@ -1,5 +1,7 @@
-const TOTAL_PAGES = 10;
 const POCKETS_PER_PAGE = 16;
+
+const DEFAULT_PAGES = 10;
+const MAX_PAGES = 50;
 
 const CARDS_KEY_PREFIX = 'binderCards:';
 const DIRTY_KEY_PREFIX = 'binderDirty:';
@@ -10,14 +12,27 @@ const OLD_SINGLE_BINDER_KEY = 'binderCards';
 
 const FILE_APP_NAME = 'mtg-card-binder';
 
+const SYMBOL_URL = 'https://svgs.scryfall.io/card-symbols/';
 const MANA_COLORS = [
-  { code: 'W', name: 'White',     symbol: 'https://svgs.scryfall.io/card-symbols/W.svg' },
-  { code: 'U', name: 'Blue',      symbol: 'https://svgs.scryfall.io/card-symbols/U.svg' },
-  { code: 'B', name: 'Black',     symbol: 'https://svgs.scryfall.io/card-symbols/B.svg' },
-  { code: 'R', name: 'Red',       symbol: 'https://svgs.scryfall.io/card-symbols/R.svg' },
-  { code: 'G', name: 'Green',     symbol: 'https://svgs.scryfall.io/card-symbols/G.svg' },
-  { code: 'C', name: 'Colorless', symbol: 'https://svgs.scryfall.io/card-symbols/C.svg' }
-];
+  { code: 'W',  name: 'White',     short: 'White',     group: 'single' },
+  { code: 'U',  name: 'Blue',      short: 'Blue',      group: 'single' },
+  { code: 'B',  name: 'Black',     short: 'Black',     group: 'single' },
+  { code: 'R',  name: 'Red',       short: 'Red',       group: 'single' },
+  { code: 'G',  name: 'Green',     short: 'Green',     group: 'single' },
+  { code: 'C',  name: 'Colorless', short: 'Colorless', group: 'single' },
+  { code: 'PW', name: 'Planeswalker', short: 'Planeswalker', group: 'single',
+    symbol: 'icons/planeswalker.svg' },
+  { code: 'WU', name: 'White and Blue',  short: 'Azorius',  group: 'two' },
+  { code: 'UB', name: 'Blue and Black',  short: 'Dimir',    group: 'two' },
+  { code: 'BR', name: 'Black and Red',   short: 'Rakdos',   group: 'two' },
+  { code: 'RG', name: 'Red and Green',   short: 'Gruul',    group: 'two' },
+  { code: 'GW', name: 'Green and White', short: 'Selesnya', group: 'two' },
+  { code: 'WB', name: 'White and Black', short: 'Orzhov',   group: 'two' },
+  { code: 'UR', name: 'Blue and Red',    short: 'Izzet',    group: 'two' },
+  { code: 'BG', name: 'Black and Green', short: 'Golgari',  group: 'two' },
+  { code: 'RW', name: 'Red and White',   short: 'Boros',    group: 'two' },
+  { code: 'GU', name: 'Green and Blue',  short: 'Simic',    group: 'two' }
+].map((color) => ({ ...color, symbol: color.symbol || `${SYMBOL_URL}${color.code}.svg` }));
 
 function manaColor(code) {
   return MANA_COLORS.find((c) => c.code === code) || null;
@@ -77,6 +92,44 @@ function binderName(id) {
   return found ? found.name : 'Binder';
 }
 
+function nextBinderName() {
+  const used = new Set(loadBinderList().map((b) => b.name));
+  let number = 1;
+  while (used.has(`Binder ${number}`)) number++;
+  return `Binder ${number}`;
+}
+
+function binderPages(id) {
+  const found = loadBinderList().find((b) => b.id === id);
+  return found ? cleanPageCount(found.pages) : DEFAULT_PAGES;
+}
+
+function cleanPageCount(pages) {
+  const number = Math.round(Number(pages));
+  if (!Number.isFinite(number) || number < 1) return DEFAULT_PAGES;
+  return Math.min(number, MAX_PAGES);
+}
+
+function minPagesFor(cardCount) {
+  return Math.max(1, Math.ceil(cardCount / POCKETS_PER_PAGE));
+}
+
+function fitCardsIntoPages(cards, pages) {
+  const kept = {};
+  const homeless = [];
+  for (const [key, card] of Object.entries(cards)) {
+    const page = Number(key.split('-')[0]);
+    if (page <= pages) kept[key] = card;
+    else homeless.push([key, card]);
+  }
+  homeless.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+  for (const [, card] of homeless) {
+    const spot = firstEmptyPocket(kept, pages);
+    if (spot) kept[pocketKey(spot.page, spot.slot)] = card;
+  }
+  return kept;
+}
+
 function binderColor(id) {
   const found = loadBinderList().find((b) => b.id === id);
   return found && manaColor(found.color) ? found.color : null;
@@ -88,6 +141,7 @@ function binderFileData(id) {
     version: 1,
     name: binderName(id),
     color: binderColor(id),
+    pages: binderPages(id),
     savedAt: new Date().toISOString(),
     cards: loadBinder(id)
   };
@@ -109,8 +163,8 @@ function clearAllBinders() {
   storageRemove(LAST_BINDER_KEY);
 }
 
-function firstEmptyPocket(cards) {
-  for (let page = 1; page <= TOTAL_PAGES; page++) {
+function firstEmptyPocket(cards, pages = DEFAULT_PAGES) {
+  for (let page = 1; page <= pages; page++) {
     for (let slot = 1; slot <= POCKETS_PER_PAGE; slot++) {
       if (!cards[pocketKey(page, slot)]) return { page, slot };
     }
@@ -138,7 +192,7 @@ function cleanCards(incoming) {
     const match = /^(\d+)-(\d+)$/.exec(key);
     const page = match ? Number(match[1]) : 0;
     const slot = match ? Number(match[2]) : 0;
-    const pocketExists = page >= 1 && page <= TOTAL_PAGES && slot >= 1 && slot <= POCKETS_PER_PAGE;
+    const pocketExists = page >= 1 && page <= MAX_PAGES && slot >= 1 && slot <= POCKETS_PER_PAGE;
     if (pocketExists && isValidCard(card)) cards[pocketKey(page, slot)] = card;
     else skipped++;
   }
