@@ -194,11 +194,47 @@ main {
   The sign-in box. "margin: auto" inside main's column centers it both
   ways: across the page and up/down in the space above the footer.
 */
+/*
+  The sign-in screen fills the page between the top bar and the footer
+  ("flex: 1"), as a grid of three rows:
+    1. the open binder picture, sitting at the bottom of the top row
+    2. the sign-in box
+    3. empty
+  Rows 1 and 3 share the spare height equally ("1fr" each), so the box
+  stays centered on the page, where it always was. Only when the window
+  is too short for the picture to fit in the top half does row 1 grow,
+  pushing the box down (and the page can scroll).
+*/
 .sign-in {
-  max-width: 420px;
-  margin: auto;
+  flex: 1;
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
+  justify-items: center;
   text-align: center;
 }
+/* "display: grid" above would otherwise beat the "hidden" attribute that
+   landing.js uses to hide the sign-in screen once signed in */
+.sign-in[hidden] { display: none; }
+
+/*
+  The open binder picture: at most 560px wide (and never wider than the
+  page), and never taller than 36% of the window, so on short windows it
+  shrinks before it pushes the box down. "object-fit: contain" keeps its
+  shape when either limit kicks in. The 24px gap keeps it off the heading.
+*/
+.sign-in-art {
+  align-self: end;
+  width: min(560px, 100%);
+  height: auto;
+  max-height: 36svh;
+  object-fit: contain;
+  margin: 8px 0 24px;
+  /* A soft shadow under the binder, like it's lying on a table */
+  filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.35));
+}
+
+/* The sign-in box: the heading, text and buttons, no wider than 420px */
+.sign-in-box { max-width: 420px; }
 
 /* The heading and the short explanation above the button */
 .sign-in-title {
@@ -477,6 +513,45 @@ main {
 }
 
 /*
+  The holder for one binder and its download button (landing.js puts them
+  together, since a button can't go inside the binder's link).
+  "position: relative" lets the button be placed against the holder's
+  edges; the binder itself still fills the holder exactly as before.
+*/
+.binder-slot { position: relative; }
+
+/*
+  The small download button: a round down arrow at the right edge, on the
+  same line as the card count. It's placed on top ("absolute") rather than
+  beside the count, so the count stays centered under the binder.
+  It's quiet (muted color) until the mouse is over it.
+*/
+.binder-download {
+  position: absolute;
+  right: 0;
+  bottom: -3px;             /* centers it on the card count's line */
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.binder-download svg { width: 14px; height: 14px; }
+.binder-download:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.binder-download:disabled { opacity: 0.5; cursor: progress; }
+
+/* While a binder is being dragged, its download button fades with it */
+.binder-slot:has(.drag-source) .binder-download { opacity: 0.3; }
+
+/*
   Hovering (or reaching with the Tab key): the binder lifts a little with a
   springy bounce and a bigger shadow, and the "+" turns bold.
   "(hover: hover)" limits the lift to devices with a mouse.
@@ -631,7 +706,14 @@ body { padding-bottom: 43px; }
   .site-footer nav { grid-column: 1; }
   .footer-links { justify-content: flex-start; gap: 8px 12px; }
   .footer-signout { grid-column: 2; }
+  /* Shorter link words ("Binders", "Finder"), so the links, Help and
+     "Sign out" fit on one line. (".footer-links" in front makes these
+     rules win over the plain ".label-short" rule below.) */
+  .footer-links .label-long { display: none; }
+  .footer-links .label-short { display: inline; }
 }
+/* The short link words are hidden except on phones (the rule just above) */
+.label-short { display: none; }
 /* The smallest phones (360px wide or less): shrink the footer text one more
    step so the links and "Sign out" still fit on one line */
 @media (max-width: 360px) {

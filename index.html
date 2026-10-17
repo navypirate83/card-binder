@@ -66,42 +66,53 @@
 
   <main>
     <!--
-      SIGNED OUT: the sign-in screen, centered on the page.
+      SIGNED OUT: the sign-in screen.
       landing.js shows this or the binder shelf below, never both.
+      It's laid out in three rows (see .sign-in in landing.css): the open
+      binder picture at the top, the sign-in box in the middle (centered on
+      the page, as before), and an empty row at the bottom the same height
+      as the top one, which is what keeps the box centered.
     -->
     <section id="signedOutView" class="sign-in" aria-labelledby="signInTitle" hidden>
-      <h2 id="signInTitle" class="sign-in-title">Your Magic card binders</h2>
-      <p class="sign-in-text">
-        Sign in with your Google account. Your binders are saved in your own
-        Google Drive, so you can open them on any computer or phone.
-      </p>
+      <!-- The open binder full of cards. alt="" because it's only
+           decoration: the heading below says what the page is. -->
+      <img class="sign-in-art" src="images/open-binder.png" alt="" width="760" height="458">
 
-      <!--
-        The sign-in button, styled the way Google asks: white, with Google's
-        colored "G" logo and the words "Sign in with Google".
-      -->
-      <button id="signInButton" class="google-button" type="button">
-        <!-- Google's "G" logo, drawn in its four colors -->
-        <svg class="google-logo" viewBox="0 0 48 48" aria-hidden="true">
-          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-        </svg>
-        Sign in with Google
-      </button>
+      <!-- The sign-in box: heading, explanation, buttons and messages -->
+      <div class="sign-in-box">
+        <h2 id="signInTitle" class="sign-in-title">Your Magic card binders</h2>
+        <p class="sign-in-text">
+          Sign in with your Google account. Your binders are saved in your own
+          Google Drive, so you can open them on any computer or phone.
+        </p>
 
-      <!--
-        Use the app without signing in: the binders are saved on this
-        device only (no Google Drive). It's a button that looks like a link.
-        Signing in later (bottom right of the page) uploads them to Drive.
-      -->
-      <p class="skip-login">
-        <button id="skipLoginButton" class="skip-login-button" type="button">Skip login, local use only</button>
-      </p>
+        <!--
+          The sign-in button, styled the way Google asks: white, with Google's
+          colored "G" logo and the words "Sign in with Google".
+        -->
+        <button id="signInButton" class="google-button" type="button">
+          <!-- Google's "G" logo, drawn in its four colors -->
+          <svg class="google-logo" viewBox="0 0 48 48" aria-hidden="true">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          Sign in with Google
+        </button>
 
-      <!-- Messages about signing in (for example if it was cancelled) -->
-      <p id="signInMessage" class="sign-in-message" role="status"></p>
+        <!--
+          Use the app without signing in: the binders are saved on this
+          device only (no Google Drive). It's a button that looks like a link.
+          Signing in later (bottom right of the page) uploads them to Drive.
+        -->
+        <p class="skip-login">
+          <button id="skipLoginButton" class="skip-login-button" type="button">Skip login, local use only</button>
+        </p>
+
+        <!-- Messages about signing in (for example if it was cancelled) -->
+        <p id="signInMessage" class="sign-in-message" role="status"></p>
+      </div>
     </section>
 
     <!--
@@ -164,12 +175,22 @@
           <div id="coverChoices" class="cover-grid"></div>
         </fieldset>
         <!-- "Create binder" comes first so pressing Enter creates the binder;
-             binder-dialog.css shows the buttons in reverse order (Cancel on the left) -->
+             binder-dialog.css shows the buttons in reverse order, so they
+             read: Upload .JSON (far left), Cancel, Create binder -->
         <div class="dialog-buttons">
           <button value="create" class="dialog-button primary" type="submit">Create binder</button>
           <!-- formnovalidate: Cancel works even if the name box is empty -->
           <button value="cancel" class="dialog-button" type="submit" formnovalidate>Cancel</button>
+          <!--
+            "Upload .JSON": make the binder from a binder file downloaded
+            earlier (the download button under each binder), with its name,
+            cover, pages and cards. type="button" so it doesn't close the
+            window by itself; landing.js opens the file picker below.
+          -->
+          <button id="uploadBinderButton" class="dialog-button upload-button" type="button">Upload .JSON</button>
         </div>
+        <!-- The file picker ("upload box"), hidden: the Upload .JSON button opens it -->
+        <input id="uploadBinderInput" type="file" accept=".json,application/json" hidden>
       </form>
     </dialog>
 
@@ -195,7 +216,7 @@
         <!--
           How many pages the binder has: a number box (with up/down arrows).
           "min" and "max" are filled in by landing.js: the smallest is the
-          fewest pages that hold the binder's cards, the largest is 50. The
+          fewest pages that hold the binder's cards, the largest is 150. The
           browser won't let Save go ahead with a number outside them.
           The note under it explains the limits.
         -->
@@ -271,13 +292,19 @@
     Footer: links to every page in the project (the same list is on the
     other pages). aria-current marks the page you're on: screen readers say
     "current page", and landing.css shows it as plain bold text.
+    Two links have a long and a short label: phones show the short one
+    ("Binders", "Finder"), so the footer stays on one line (landing.css).
   -->
   <footer class="site-footer">
     <nav aria-label="All pages">
       <ul class="footer-links">
         <!-- Hidden on the sign-in screen; landing.js shows it once signed in -->
-        <li id="myBindersItem" hidden><a href="index.html" aria-current="page">My Binders</a></li>
-        <li><a href="cardsearch.html">MTG Card Finder</a></li>
+        <li id="myBindersItem" hidden><a href="index.html" aria-current="page"><span class="label-long">My Binders</span><span class="label-short">Binders</span></a></li>
+        <li><a href="cardsearch.html"><span class="label-long">MTG Card Finder</span><span class="label-short">Finder</span></a></li>
+        <!-- How to use the site (opens to the My Binders instructions).
+             Hidden on the sign-in screen like "My Binders"; landing.js
+             shows it once the binder shelf is showing. -->
+        <li id="helpItem" hidden><a href="help.html#my-binders">Help</a></li>
       </ul>
     </nav>
     <!-- "Sign out" at the far right ("Sign in with Google" when using the app

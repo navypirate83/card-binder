@@ -4,9 +4,6 @@ const binder      = document.getElementById('binder');
 const prevButton  = document.getElementById('prevPage');
 const nextButton  = document.getElementById('nextPage');
 const pageStatus  = document.getElementById('pageStatus');
-const downloadButton = document.getElementById('downloadJson');
-const uploadButton   = document.getElementById('uploadJson');
-const fileInput      = document.getElementById('jsonFileInput');
 const syncStatus     = document.getElementById('syncStatus');
 const syncConnect    = document.getElementById('syncConnect');
 
@@ -712,120 +709,18 @@ const startPage = parseInt(new URLSearchParams(location.search).get('page'), 10)
 if (startPage >= 1 && startPage <= TOTAL_PAGES) currentPage = startPage;
 showPages();
 
-downloadButton.addEventListener('click', () => {
-  const data = binderFileData(BINDER_ID);
-  const file = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(file);
-  const safeName = binderName(BINDER_ID).replace(/[\\/:*?"<>|]/g, '');
-  link.download = `${safeName} ${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(link.href);   // free the memory the file was using
-});
-
-// Using the app locally (no sign-in): no .JSON download or upload. The
-// two links (and the hidden file picker) are taken off the page.
-if (isLocalMode()) {
-  downloadButton.remove();
-  uploadButton.remove();
-  fileInput.remove();
-}
-
-// UPLOAD: the Upload button opens the (hidden) file picker.
-uploadButton.addEventListener('click', () => fileInput.click());
-
-// Read a chosen file, check it, and put its cards into the binder.
-fileInput.addEventListener('change', async () => {
-  const chosen = fileInput.files[0];
-  fileInput.value = '';             // so picking the same file again still works
-  if (!chosen) return;              // the picker was closed without a file
-
-  // Read the file's text and turn it back into data.
-  let data;
-  try {
-    data = JSON.parse(await chosen.text());
-  } catch (e) {
-    alert('That file isn\'t a readable .JSON file.');
-    return;
-  }
-
-  // Accept our own download format ({ cards: {...} }) or just the cards
-  // by themselves ({ "1-1": {...}, ... }).
-  const incoming = data && typeof data === 'object' && data.cards ? data.cards : data;
-  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
-    alert('That file doesn\'t contain any binder cards.');
-    return;
-  }
-
-  // Keep only the valid cards in pockets that exist (like "3-5").
-  // cleanCards() is in binder-storage.js.
-  const { cards, skipped } = cleanCards(incoming);
-
-  const count = Object.keys(cards).length;
-  if (count === 0) {
-    alert('No usable cards were found in that file.');
-    return;
-  }
-
-  // Uploading REPLACES the binder, so check first if it already has cards.
-  const current = Object.keys(binderCards).length;
-  if (current > 0 && !confirm(
-    `Replace the ${current} card${current === 1 ? '' : 's'} in your binder ` +
-    `with the ${count} card${count === 1 ? '' : 's'} from this file?`)) {
-    return;
-  }
-
-  if (!saveBinder(cards)) {
-    alert('Your browser blocked saving, so the binder could not be loaded.');
-    return;
-  }
-  if (skipped > 0) {
-    alert(`Loaded ${count} cards. ${skipped} entr${skipped === 1 ? 'y was' : 'ies were'} skipped because ${skipped === 1 ? 'it wasn\'t' : 'they weren\'t'} valid.`);
-  }
-  // Reload the page so every pocket is rebuilt from the new cards (it then
-  // saves them to Google Drive). Keep the same page open in the address.
-  location.href = `binder.html?binder=${encodeURIComponent(BINDER_ID)}&page=${currentPage}`;
-});
-
-/* =====================================================================
-   SAVING TO GOOGLE DRIVE
-   The binder's real home is its file in the user's Google Drive (see
-   google-drive.js). This page works on the browser's copy and keeps Drive
-   up to date:
-   - When the page opens, it fetches the binder from Drive (in case it was
-     changed on another computer), or sends this browser's changes to
-     Drive if there are some that haven't been saved yet.
-   - After each change (moving or removing a card), it saves to Drive a
-     moment later. Waiting a moment means several quick changes are sent
-     together in one save.
-   - If the Google sign-in has run out (it lasts about an hour), changes
-     are kept in this browser and a "Connect Drive" button appears. Clicking
-     it signs in again and saves everything.
-   ===================================================================== */
-
-// How long to wait after a change before saving to Drive (milliseconds).
 const DRIVE_SAVE_DELAY_MS = 1200;
 
-// The waiting timer for the next save to Drive.
 let driveSaveTimer = null;
 
-// A note to show in the top bar once this binder's change is saved
-// (like "✓ Moved to Blue, page 1"), instead of the usual "✓ Saved to Drive".
-// Set after moving a card to another binder.
 let savedNote = null;
 
-// Show the save status in the top bar. "state" picks the look:
-// 'saved', 'saving', 'error', or 'signed-out' (which shows the Connect button).
 function setSyncStatus(state, text) {
   syncStatus.textContent = text;
   syncStatus.dataset.state = state;
   syncConnect.hidden = state !== 'signed-out';
 }
 
-// Put new cards into the binder (after fetching them from Drive) and
-// redraw every pocket so the page matches.
 function replaceAllCards(cards) {
   for (const key of Object.keys(binderCards)) delete binderCards[key];
   Object.assign(binderCards, cards);
@@ -834,15 +729,11 @@ function replaceAllCards(cards) {
   }
 }
 
-// Using the app locally (no sign-in): every change is already saved on
-// this device, so just say so in the top bar (or say where a moved card
-// went, see MOVING A CARD TO ANOTHER BINDER).
 function showSavedLocally() {
   setSyncStatus('saved', savedNote || '✓ Saved on this device');
   savedNote = null;
 }
 
-// Bring this binder up to date with Google Drive now.
 async function syncWithDrive() {
   clearTimeout(driveSaveTimer);
   if (isLocalMode()) { showSavedLocally(); return; }
@@ -853,13 +744,8 @@ async function syncWithDrive() {
   setSyncStatus('saving', 'Saving…');
   const before = JSON.stringify(binderCards);
   try {
-    const cards = await syncBinder(BINDER_ID);   // google-drive.js
-    // Drive had a different version (changed elsewhere): show that one.
-    // (Skipped while a card is being dragged, so it doesn't vanish mid-drag;
-    // the next save brings everything into line.)
+    const cards = await syncBinder(BINDER_ID);
     if (!drag && JSON.stringify(cards) !== before) replaceAllCards(cards);
-    // Usually "✓ Saved to Drive"; after moving a card to another binder,
-    // say where it went instead (see MOVING A CARD TO ANOTHER BINDER).
     setSyncStatus('saved', savedNote || '✓ Saved to Drive');
     savedNote = null;
   } catch (err) {
@@ -868,8 +754,6 @@ async function syncWithDrive() {
   }
 }
 
-// After a change: save to Drive in a moment (restarting the wait if more
-// changes come in quickly).
 function scheduleDriveSave() {
   clearTimeout(driveSaveTimer);
   if (isLocalMode()) { showSavedLocally(); return; }
@@ -881,23 +765,18 @@ function scheduleDriveSave() {
   driveSaveTimer = setTimeout(syncWithDrive, DRIVE_SAVE_DELAY_MS);
 }
 
-// "Connect Drive": sign in to Google again, then save.
 syncConnect.addEventListener('click', async () => {
   try {
-    await signInWithGoogle();   // google-drive.js
+    await signInWithGoogle();
     syncWithDrive();
   } catch (err) {
     alert(err.message);
   }
 });
 
-// When the page opens: get Google's sign-in ready (for the Connect button)
-// and bring the binder up to date with Drive.
-initGoogleSignIn().catch(() => { /* the Connect button explains if needed */ });
+initGoogleSignIn().catch(() => {  });
 if (BINDER_ID) syncWithDrive();
 
-// The link at the bottom right: "Sign out" (google-drive.js saves any
-// unsaved changes first; afterwards, go to the sign-in screen), or "Sign in
 setUpFooterSignOut(() => { location.href = 'index.html'; });
 
 const moveCardDialog  = document.getElementById('moveCardDialog');

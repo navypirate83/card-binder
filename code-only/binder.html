@@ -28,22 +28,6 @@
     <h1>MTG Card Binder</h1>
 
     <div class="binder-tools">
-      <button id="downloadJson" class="tool-link" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>
-        </svg>
-        Download .JSON
-      </button>
-      <button id="uploadJson" class="tool-link" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 16V5M7 10l5-5 5 5M5 20h14"/>
-        </svg>
-        Upload .JSON
-      </button>
-      <input id="jsonFileInput" type="file" accept=".json,application/json" hidden>
-
       <span id="syncStatus" class="sync-status" aria-live="polite"></span>
       <button id="syncConnect" class="tool-link" type="button" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
@@ -138,9 +122,10 @@
   <footer class="site-footer">
     <nav aria-label="All pages">
       <ul class="footer-links">
-        <li><a href="index.html">My Binders</a></li>
+        <li><a href="index.html"><span class="label-long">My Binders</span><span class="label-short">Binders</span></a></li>
         <li><a id="thisBinderLink" href="binder.html" aria-current="page">Binder</a></li>
-        <li><a id="cardSearchLink" href="cardsearch.html">MTG Card Finder</a></li>
+        <li><a id="cardSearchLink" href="cardsearch.html"><span class="label-long">MTG Card Finder</span><span class="label-short">Finder</span></a></li>
+        <li><a href="help.html#binder">Help</a></li>
       </ul>
     </nav>
     <button id="footerSignOut" class="footer-signout" type="button" hidden>Sign out</button>

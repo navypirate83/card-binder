@@ -42,31 +42,11 @@
     <h1>MTG Card Binder</h1>
 
     <!--
-      Save / load the binder's cards as a .JSON file (a plain text file of
-      data). They're buttons, styled to look like links. The file picker
-      input is hidden: the Upload button opens it for you.
-      (javascript.js takes these off the page when the app is used locally,
-      without signing in.)
+      The middle of the top bar: where the binder is saved.
+      (A binder's .JSON download is on the My Binders page now, under each
+      binder; uploading one is in its New binder window.)
     -->
     <div class="binder-tools">
-      <button id="downloadJson" class="tool-link" type="button">
-        <!-- Down-arrow icon -->
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>
-        </svg>
-        Download .JSON
-      </button>
-      <button id="uploadJson" class="tool-link" type="button">
-        <!-- Up-arrow icon -->
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 16V5M7 10l5-5 5 5M5 20h14"/>
-        </svg>
-        Upload .JSON
-      </button>
-      <input id="jsonFileInput" type="file" accept=".json,application/json" hidden>
-
       <!--
         Google Drive save status: "Saved to Drive", "Saving…", or (when the
         Google sign-in has run out) a "Connect Drive" button to sign in again.
@@ -217,13 +197,17 @@
     "current page", and style.css shows it as plain bold text.
     javascript.js fills in this binder's name and adds it to the card search
     link, so "Add to binder" over there knows which binder to use.
+    Two links have a long and a short label: phones show the short one
+    ("Binders", "Finder"), so the footer stays on one line (style.css).
   -->
   <footer class="site-footer">
     <nav aria-label="All pages">
       <ul class="footer-links">
-        <li><a href="index.html">My Binders</a></li>
+        <li><a href="index.html"><span class="label-long">My Binders</span><span class="label-short">Binders</span></a></li>
         <li><a id="thisBinderLink" href="binder.html" aria-current="page">Binder</a></li>
-        <li><a id="cardSearchLink" href="cardsearch.html">MTG Card Finder</a></li>
+        <li><a id="cardSearchLink" href="cardsearch.html"><span class="label-long">MTG Card Finder</span><span class="label-short">Finder</span></a></li>
+        <!-- How to use the site (opens to the Binder pages instructions) -->
+        <li><a href="help.html#binder">Help</a></li>
       </ul>
     </nav>
     <!-- "Sign out" at the far right ("Sign in with Google" when using the app

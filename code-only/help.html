@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Help – MTG Card Binder</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/favicon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+  <script>
+    (function () {
+      var theme = null;
+      // Try to read the saved theme. Some browsers block storage, so we guard it.
+      try { theme = localStorage.getItem('theme'); } catch (e) {}
+      // No saved choice? Follow the device's own light/dark setting.
+      if (theme !== 'light' && theme !== 'dark') {
+        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
+  <link rel="stylesheet" href="landing.css">
+  <link rel="stylesheet" href="help.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>MTG Card Binder</h1>
+    <button id="themeSwitch" class="theme-switch" type="button" role="switch"
+            aria-checked="false" aria-label="Dark mode">
+      <svg class="icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4.5" fill="currentColor"/>
+        <path d="M12 1.5v2.5M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/>
+      </svg>
+      <svg class="icon moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/>
+      </svg>
+      <span class="thumb"></span>
+    </button>
+  </header>
+
+  <main class="help-layout">
+    <nav class="help-nav" aria-label="Help topics">
+      <h2 class="help-nav-title">Help</h2>
+      <ul class="help-topics">
+        <li>
+          <a class="help-topic" href="#my-binders">My Binders</a>
+          <ul class="help-sections">
+            <li><a href="#my-binders-start">Getting started</a></li>
+            <li><a href="#my-binders-new">Making a binder</a></li>
+            <li><a href="#my-binders-open">Opening and arranging</a></li>
+            <li><a href="#my-binders-edit">Changing a binder</a></li>
+            <li><a href="#my-binders-delete">Deleting a binder</a></li>
+            <li><a href="#my-binders-backup">Backing up a binder</a></li>
+            <li><a href="#my-binders-links">Getting around</a></li>
+            <li><a href="#my-binders-account">Signing in and out</a></li>
+          </ul>
+        </li>
+        <li>
+          <a class="help-topic" href="#binder">Binder pages</a>
+          <ul class="help-sections">
+            <li><a href="#binder-pages">Turning pages</a></li>
+            <li><a href="#binder-adding">Adding cards</a></li>
+            <li><a href="#binder-copies">How many copies</a></li>
+            <li><a href="#binder-dragging">Moving cards around</a></li>
+            <li><a href="#binder-removing">Removing cards</a></li>
+            <li><a href="#binder-moving">Moving to another binder</a></li>
+            <li><a href="#binder-saving">Saving and backups</a></li>
+          </ul>
+        </li>
+        <li>
+          <a class="help-topic" href="#finder">MTG Card Finder</a>
+          <ul class="help-sections">
+            <li><a href="#finder-search">Searching for a card</a></li>
+            <li><a href="#finder-printing">Set, version and language</a></li>
+            <li><a href="#finder-add">Adding to a binder</a></li>
+            <li><a href="#finder-share">Sharing a card</a></li>
+            <li><a href="#finder-rules">Rules and legality</a></li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+
+    <div class="help-content">
+
+      <article id="my-binders" class="help-article" aria-labelledby="my-binders-title">
+        <h2 id="my-binders-title">My Binders</h2>
+        <p class="help-lead">
+          My Binders is your shelf: every binder you own, shown as a closed
+          binder with its name, cover symbol and color. The number under each
+          one is how many cards are in it.
+        </p>
+
+        <section id="my-binders-start">
+          <h3>Getting started</h3>
+          <p>
+            When you first open the site, you see the welcome page: a picture of an open
+            binder full of cards, with two choices under it:
+          </p>
+          <ul>
+            <li><strong>Sign in with Google</strong> to save your binders in your own
+              Google Drive (in a folder called "MTG Card Binder"). You can then open
+              them on any computer or phone by signing in there.</li>
+            <li><strong>Skip login, local use only</strong> to start right away without
+              an account. Your binders are saved on this device only. You can sign in
+              later, and your binders will be copied to Google Drive then.</li>
+          </ul>
+          <p>The site remembers your choice, so next time it goes straight to your shelf.</p>
+        </section>
+
+        <section id="my-binders-new">
+          <h3>Making a binder</h3>
+          <ol>
+            <li>Click the binder with the white <strong>+</strong> on it (always last on the shelf).</li>
+            <li>Type a <strong>name</strong>, up to 12 characters so it fits on the cover's label.
+              A name like "Binder 3" is filled in for you.</li>
+            <li>Pick a <strong>cover symbol</strong>: none, one of the five colors, colorless,
+              planeswalker, or one of the two-color symbols.</li>
+            <li>Pick a <strong>cover color</strong>. Choose <strong>Custom</strong> to pick any
+              color you like.</li>
+            <li>Click <strong>Create binder</strong>.</li>
+          </ol>
+          <p>New binders have 10 pages of 16 pockets (160 cards). There's no limit on how many binders you can make.</p>
+          <p>
+            To bring back a binder you saved as a file, use <strong>Upload .JSON</strong> in
+            the same window (see <a href="#my-binders-backup">Backing up a binder</a>).
+          </p>
+        </section>
+
+        <section id="my-binders-open">
+          <h3>Opening and arranging</h3>
+          <ul>
+            <li><strong>Open a binder</strong>: click it.</li>
+            <li><strong>Change the order</strong>: drag a binder to a new spot on the shelf and
+              let go. On a phone, press and hold a binder until it lifts, then slide it.</li>
+          </ul>
+          <p>The shelf fits as many binders across as your screen has room for.</p>
+        </section>
+
+        <section id="my-binders-edit">
+          <h3>Changing a binder</h3>
+          <p>
+            Start dragging a binder, and a <strong>pencil circle</strong> appears at the top
+            of the page. Drop the binder on it to open <strong>Binder properties</strong>,
+            where you can change:
+          </p>
+          <ul>
+            <li>its <strong>name</strong>,</li>
+            <li>how many <strong>pages</strong> it has (up to 150). It can't be made smaller
+              than the pages its cards need; cards on pages that go away are moved into
+              empty pockets on the pages that stay,</li>
+            <li>its <strong>cover symbol</strong> and <strong>cover color</strong>.</li>
+          </ul>
+          <p>Click <strong>Save</strong> to keep the changes, or <strong>Cancel</strong> to leave it as it was.</p>
+        </section>
+
+        <section id="my-binders-delete">
+          <h3>Deleting a binder</h3>
+          <p>
+            While dragging a binder, a <strong>red X circle</strong> appears at the bottom of
+            the page. Drop the binder on it, and you'll be asked if you're sure (with how
+            many cards are in it). Click <strong>Yes, delete</strong> to delete it, or
+            <strong>No</strong> to keep it.
+          </p>
+          <p>
+            When signed in, a deleted binder goes to your Google Drive trash, where you
+            can restore it for 30 days. When using the site locally, it's gone for good.
+          </p>
+        </section>
+
+        <section id="my-binders-backup">
+          <h3>Backing up a binder</h3>
+          <p>
+            You can save any binder as a <strong>.JSON file</strong> (a small text file) to keep
+            as a backup, or to share with a friend.
+          </p>
+          <ul>
+            <li><strong>Download</strong>: click the small <strong>down arrow</strong> at the
+              right end of the line under a binder (beside its card count). The file holds
+              the binder's name, cover symbol, cover color, pages and every card, with how
+              many copies of each.</li>
+            <li><strong>Upload</strong>: click the <strong>+</strong> binder, then
+              <strong>Upload .JSON</strong> at the bottom left of the New binder window, and
+              pick a binder file. It's added to the end of your shelf as a new binder, just
+              as it was saved. If you already have a binder with that name, the new one is
+              called "Name (1)", then "Name (2)", and so on. (Names can be up to 12
+              characters, so a long name is shortened to make room for the number, like
+              "Planeswa (1)". You can rename it in Binder properties.)</li>
+          </ul>
+        </section>
+
+        <section id="my-binders-links">
+          <h3>Getting around</h3>
+          <p>The links along the bottom of every page take you anywhere on the site:</p>
+          <ul>
+            <li><strong>My Binders</strong>: back to your shelf. When you're not signed in (and
+              not using the site locally), this is <strong>Home</strong> instead, which goes
+              back to the welcome page.</li>
+            <li>The <strong>binder's name</strong>: back to the binder you were last in
+              (shown inside a binder and on the MTG Card Finder).</li>
+            <li><strong>MTG Card Finder</strong>: look up any card.</li>
+            <li><strong>Help</strong>: these instructions, opened to the page you were on.</li>
+          </ul>
+          <p>
+            On a phone, two of the links are shortened so they all fit on one line:
+            <strong>Binders</strong> (My Binders) and <strong>Finder</strong> (MTG Card Finder).
+          </p>
+          <p>
+            The <strong>sun and moon switch</strong> at the top right swaps between light
+            and dark colors on every page.
+          </p>
+        </section>
+
+        <section id="my-binders-account">
+          <h3>Signing in and out</h3>
+          <ul>
+            <li>The link at the bottom right of every page says <strong>Sign out</strong> when
+              you're signed in. Signing out saves any changes to Google Drive first, then
+              removes your binders from this browser, so the next person on this computer
+              can't see them. They're still safe in your Google Drive.</li>
+            <li>When using the site locally, that link says <strong>Sign in with Google</strong>
+              instead. Signing in copies the binders on this device to your Google Drive.</li>
+          </ul>
+        </section>
+      </article>
+
+      <article id="binder" class="help-article" aria-labelledby="binder-title">
+        <h2 id="binder-title">Binder pages</h2>
+        <p class="help-lead">
+          Opening a binder shows its pages, like a real binder lying open: two pages
+          side by side on a computer or tablet, one page at a time on a phone. Each
+          page has 16 pockets, four across and four down.
+        </p>
+
+        <section id="binder-pages">
+          <h3>Turning pages</h3>
+          <ul>
+            <li>Click <strong>Previous page</strong> or <strong>Next page</strong> under the binder.
+              The page number between them shows where you are.</li>
+            <li>On a phone, swipe <strong>left</strong> to go to the next page and
+              <strong>right</strong> to go back.</li>
+          </ul>
+        </section>
+
+        <section id="binder-adding">
+          <h3>Adding cards</h3>
+          <ol>
+            <li>Click the white <strong>+</strong> in an empty pocket. This opens the MTG Card Finder.</li>
+            <li>Search for the card and pick the exact set, version and language you own
+              (see <a href="#finder-search">MTG Card Finder</a>).</li>
+            <li>Click the round <strong>+</strong> button beside the card. It goes into the pocket
+              you clicked, and you're taken back to that page of your binder.</li>
+          </ol>
+          <p>
+            To <strong>look at a card</strong> already in the binder, click it: it opens in the
+            MTG Card Finder. Picking a different printing there and pressing <strong>+</strong>
+            replaces the card in that pocket.
+          </p>
+        </section>
+
+        <section id="binder-copies">
+          <h3>How many copies</h3>
+          <p>
+            Along the bottom of each card is a small <strong>− 1 +</strong> bar showing how
+            many copies of that card you own.
+          </p>
+          <ul>
+            <li><strong>+</strong> adds a copy (up to 99).</li>
+            <li><strong>−</strong> takes a copy away. If it's the last copy, you're asked
+              <strong>Remove card?</strong> first. <strong>Yes, remove</strong> takes the card
+              out of the pocket; <strong>No</strong> keeps it.</li>
+          </ul>
+        </section>
+
+        <section id="binder-dragging">
+          <h3>Moving cards around</h3>
+          <ul>
+            <li><strong>With a mouse</strong>: press on a card and drag it. A plain click
+              (without moving) still opens the card in the MTG Card Finder.</li>
+            <li><strong>On a phone</strong>: press and hold a card for a moment until it
+              lifts, then slide it. A quick tap still opens the card, and a quick swipe
+              still turns the page.</li>
+          </ul>
+          <p>Then:</p>
+          <ul>
+            <li>Drop it on an <strong>empty pocket</strong> to move it there.</li>
+            <li>Drop it on a pocket that <strong>has a card</strong>, and the two cards swap places.</li>
+            <li>Hold it at the <strong>left or right edge</strong> of the binder, and the page turns,
+              so you can move it to another page.</li>
+            <li>Press <strong>Escape</strong>, or let go anywhere outside the pockets, to put it back.</li>
+          </ul>
+        </section>
+
+        <section id="binder-removing">
+          <h3>Removing cards</h3>
+          <p>There are two ways to take a card out of a binder:</p>
+          <ul>
+            <li>Press <strong>−</strong> on its copies bar until the last copy, then answer
+              <strong>Yes, remove</strong>.</li>
+            <li>Drag the card onto the <strong>red X circle</strong> that appears on the binder
+              while dragging. This removes the card and all its copies straight away.</li>
+          </ul>
+        </section>
+
+        <section id="binder-moving">
+          <h3>Moving to another binder</h3>
+          <ol>
+            <li>Drag the card onto the <strong>blue circle</strong> (a folder with an arrow) that
+              appears on the binder while dragging. The <strong>Move card to…</strong> window opens.</li>
+            <li>If you own more than one copy, set <strong>How many to move</strong>. The rest
+              stay in this binder.</li>
+            <li>Click one of your other binders. The card goes into its first empty pocket,
+              or, if that binder already has the same printing, it's added to that card's
+              copies. Full binders are greyed out.</li>
+            <li>Or, to start a new binder with the card in it, type a name under
+              <strong>Or move it to a new binder</strong> and click
+              <strong>New binder &amp; move</strong>.</li>
+          </ol>
+        </section>
+
+        <section id="binder-saving">
+          <h3>Saving and backups</h3>
+          <p>
+            Every change saves by itself. The message at the top of the page tells you
+            where it's saved: <strong>Saved to Drive</strong> when signed in, or
+            <strong>Saved on this device</strong> when using the site locally. If your
+            Google sign-in has run out, a <strong>Connect Drive</strong> button appears:
+            click it to sign in again and finish saving.
+          </p>
+          <p>
+            To keep your own copy of a binder as a file, use the download button under it
+            on My Binders (see <a href="#my-binders-backup">Backing up a binder</a>).
+          </p>
+        </section>
+      </article>
+
+      <article id="finder" class="help-article" aria-labelledby="finder-title">
+        <h2 id="finder-title">MTG Card Finder</h2>
+        <p class="help-lead">
+          The MTG Card Finder looks up any Magic card (using Scryfall's card list), shows
+          its picture and details, and adds it to your binders. You can use it without
+          signing in; adding to a binder needs you to be signed in or using the site locally.
+        </p>
+
+        <section id="finder-search">
+          <h3>Searching for a card</h3>
+          <ol>
+            <li>Start typing a card's name in the search box at the top.</li>
+            <li>A list of matching names drops down. Click one, or use the
+              <strong>up and down arrow keys</strong> and press <strong>Enter</strong>.</li>
+            <li>The card's picture appears, with its name, set and artist under it.</li>
+          </ol>
+          <p>
+            Cards with two sides have a <strong>Flip card ↻</strong> button under the picture
+            to see the other side.
+          </p>
+        </section>
+
+        <section id="finder-printing">
+          <h3>Set, version and language</h3>
+          <p>Most cards were printed many times. Use the boxes to pick the exact one you own:</p>
+          <ul>
+            <li><strong>Set</strong>: every set the card was printed in, with each set's symbol.</li>
+            <li><strong>Version</strong>: the different printings within that set (for example
+              borderless or full-art versions).</li>
+            <li><strong>Language</strong> (above the card): the languages that printing was made in.</li>
+          </ul>
+          <p>The picture changes to match what you pick, and that's the printing that gets added to your binder.</p>
+        </section>
+
+        <section id="finder-add">
+          <h3>Adding to a binder</h3>
+          <p>The round <strong>+</strong> button beside the card adds it to a binder:</p>
+          <ul>
+            <li><strong>Came from a binder's pocket?</strong> The card goes straight into that pocket.</li>
+            <li><strong>Opened the finder on its own?</strong> A menu asks <strong>Add to which
+              binder?</strong> with each binder's card count. Pick one, and the card goes into
+              its first empty pocket. Full binders can't be picked. <strong>New binder</strong>
+              at the bottom makes a new binder with the card in it.</li>
+          </ul>
+          <p>Either way, you're taken to the binder, opened to the page with the new card.</p>
+          <p>
+            The <strong>+</strong> button only shows when you're signed in or using the site
+            locally. When you came from a binder, a link back to it is at the bottom of the page.
+            When you're not signed in, <strong>Home</strong> at the bottom goes back to the
+            welcome page, where you can sign in.
+          </p>
+        </section>
+
+        <section id="finder-share">
+          <h3>Sharing a card</h3>
+          <p>
+            The <strong>share button</strong> (three joined dots) beside the card makes a link to
+            this exact printing and language. On a phone it opens your share menu; on a
+            computer the link is copied, ready to paste. Opening the link shows the same card.
+          </p>
+        </section>
+
+        <section id="finder-rules">
+          <h3>Rules and legality</h3>
+          <ul>
+            <li><strong>Notes and Rules</strong>: official rulings about how the card works.</li>
+            <li><strong>Format Legality</strong>: whether the card is allowed in each way of
+              playing (Standard, Modern, Commander and more).</li>
+          </ul>
+        </section>
+      </article>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <nav aria-label="All pages">
+      <ul class="footer-links">
+        <li id="myBindersItem" hidden><a href="index.html"><span class="label-long">My Binders</span><span class="label-short">Binders</span></a></li>
+        <li id="homeItem" hidden><a href="index.html">Home</a></li>
+        <li><a href="cardsearch.html"><span class="label-long">MTG Card Finder</span><span class="label-short">Finder</span></a></li>
+        <li><a href="help.html" aria-current="page">Help</a></li>
+      </ul>
+    </nav>
+  </footer>
+
+  <script src="binder-storage.js"></script>
+
+  <script src="google-drive.js"></script>
+
+  <script src="help.js"></script>
+</body>
+</html>

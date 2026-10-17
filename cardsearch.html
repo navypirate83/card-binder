@@ -238,15 +238,23 @@
     say "current page", and cardsearch.css shows it as plain bold text.
     The middle link goes back to the binder you came from; cardsearch.js
     fills it in, and it stays hidden if no binder has been opened yet.
-    Links to binders only show when logged in (cardsearch.js decides).
+    Links to binders only show when logged in (cardsearch.js decides);
+    when not logged in, a "Home" link to the landing page shows instead.
+    Two links have a long and a short label: phones show the short one
+    ("Binders", "Finder"), so the footer stays on one line (cardsearch.css).
   -->
   <footer class="site-footer">
     <nav aria-label="All pages">
       <ul class="footer-links">
         <!-- Hidden unless logged in; cardsearch.js shows it -->
-        <li id="myBindersItem" hidden><a href="index.html">My Binders</a></li>
+        <li id="myBindersItem" hidden><a href="index.html"><span class="label-long">My Binders</span><span class="label-short">Binders</span></a></li>
+        <!-- The way back to the landing (sign-in) page when NOT logged in,
+             since "My Binders" is hidden then; cardsearch.js shows it -->
+        <li id="homeItem" hidden><a href="index.html">Home</a></li>
         <li id="backToBinderItem" hidden><a id="backToBinderLink" href="binder.html">Binder</a></li>
-        <li><a href="cardsearch.html" aria-current="page">MTG Card Finder</a></li>
+        <li><a href="cardsearch.html" aria-current="page"><span class="label-long">MTG Card Finder</span><span class="label-short">Finder</span></a></li>
+        <!-- How to use the site (opens to the MTG Card Finder instructions) -->
+        <li><a href="help.html#finder">Help</a></li>
       </ul>
     </nav>
     <!-- "Sign out" at the far right ("Sign in with Google" when using the app

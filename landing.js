@@ -23,6 +23,7 @@ const signedInView   = document.getElementById('signedInView');
 const accountName    = document.getElementById('accountName');
 const footerSignOut  = document.getElementById('footerSignOut');
 const myBindersItem  = document.getElementById('myBindersItem');   // the footer's "My Binders" link
+const helpItem       = document.getElementById('helpItem');        // the footer's "Help" link
 const binderShelf    = document.getElementById('binderShelf');
 const shelfMessage   = document.getElementById('shelfMessage');
 const editBinderDialog   = document.getElementById('editBinderDialog');
@@ -83,6 +84,7 @@ function showSignedOut(message = '') {
   signedOutView.hidden = false;
   footerSignOut.hidden = true;   // nothing to sign out of
   myBindersItem.hidden = true;   // no binders to link to until signed in
+  helpItem.hidden = true;        // Help is for the binder pages, shown with them
   signInMessage.textContent = message;
   signInButton.disabled = false;
 }
@@ -138,7 +140,8 @@ function showLocalOnly() {
   signedOutView.hidden = true;
   signedInView.hidden = false;
   myBindersItem.hidden = false;   // show the "My Binders" link
-  showFooterAccountLink();        // and "Sign in with Google" (google-drive.js)
+  helpItem.hidden = false;        // and the "Help" link
+  showFooterAccountLink();       // and "Sign in with Google" (google-drive.js)
   accountName.textContent = 'Saved on this device only';
   renderShelf(loadBinderList());
   setShelfMessage('');
@@ -152,6 +155,7 @@ async function showSignedIn() {
   signedInView.hidden = false;
   showFooterAccountLink();        // show "Sign out" at the bottom right (google-drive.js)
   myBindersItem.hidden = false;   // and the "My Binders" link
+  helpItem.hidden = false;        // and the "Help" link
   renderShelf(loadBinderList());
   setShelfMessage('Loading your binders…');
 
@@ -236,7 +240,15 @@ function renderShelf(binders) {
     const coverWords = `, ${coverColorName(binder.cover)} cover`;
     tile.setAttribute('aria-label', `Open ${binder.name}${coverWords}${colorWords}, ${cardCountText(count)}`);
     tile.append(closedBinder(binder.name, binder.color, binder.cover), caption(cardCountText(count)));
-    binderShelf.appendChild(tile);
+
+    // The binder and its small download button share one spot on the
+    // shelf. (A button can't go inside the binder's link, so they sit side
+    // by side in a holder, and landing.css places the button at the right
+    // end of the card count line.)
+    const slot = document.createElement('div');
+    slot.className = 'binder-slot';
+    slot.append(tile, downloadButton(binder));
+    binderShelf.appendChild(slot);
   }
 
   // The "+" binder, always last on the shelf (there's no limit on binders).
@@ -327,6 +339,167 @@ function caption(text) {
   span.className = 'tile-caption';
   span.textContent = text;
   return span;
+}
+
+/* =====================================================================
+   DOWNLOADING A BINDER AS A .JSON FILE
+   The small down-arrow button under each binder saves that binder as a
+   .json file: its name, cover symbol, cover color, pages and cards, in
+   the same layout as its file in Google Drive (see binderFileData in
+   binder-storage.js). "Upload .JSON" in the New binder window turns
+   one of these files back into a binder.
+   ===================================================================== */
+
+// Build the download button for one binder: a down arrow, with its name
+// for screen readers and as a tooltip.
+function downloadButton(binder) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'binder-download';
+  button.title = `Download ${binder.name} as .JSON`;
+  button.setAttribute('aria-label', `Download ${binder.name} as a .JSON file`);
+  button.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>';
+  button.addEventListener('click', () => downloadBinder(binder.id, button));
+  return button;
+}
+
+// Save one binder as a .json file. When signed in, get its latest cards
+// from Google Drive first (it may have been changed on another computer);
+// if that isn't possible right now, use this browser's copy.
+async function downloadBinder(id, button) {
+  button.disabled = true;
+  if (!isLocalMode()) {
+    try { await syncBinder(id); } catch (err) { /* use this browser's copy */ }
+  }
+  button.disabled = false;
+
+  // JSON.stringify writes the binder as text; the "2" adds indenting so the
+  // file is easy to read in a text editor.
+  const data = binderFileData(id);   // binder-storage.js
+  const file = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  // The browser saves files from a link, so make an invisible link to the
+  // file's contents, "click" it, then clean up.
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(file);
+  // e.g. "Binder 1 2026-10-16.json" (characters not allowed in file names removed)
+  const safeName = data.name.replace(/[\\/:*?"<>|]/g, '');
+  link.download = `${safeName} ${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);   // free the memory the file was using
+}
+
+/* =====================================================================
+   UPLOADING A BINDER FROM A .JSON FILE
+   "Upload .JSON" in the New binder window opens the file picker. A
+   binder file (from the download button above) becomes a new binder at
+   the end of the shelf, with the file's name, cover symbol, cover color,
+   pages and cards. If a binder with that name already exists, the new
+   one is called "Name (1)", then "Name (2)", and so on.
+   ===================================================================== */
+
+const uploadBinderButton = document.getElementById('uploadBinderButton');
+const uploadBinderInput  = document.getElementById('uploadBinderInput');
+
+// Clicking "Upload .JSON" opens the (hidden) file picker.
+uploadBinderButton.addEventListener('click', () => uploadBinderInput.click());
+
+// A file was picked: read it, check it, and make the binder.
+uploadBinderInput.addEventListener('change', async () => {
+  const chosen = uploadBinderInput.files[0];
+  uploadBinderInput.value = '';     // so picking the same file again still works
+  if (!chosen) return;              // the picker was closed without a file
+
+  let binder;
+  try {
+    binder = binderFromFile(JSON.parse(await chosen.text()));
+  } catch (err) {
+    // Not a binder file: say why, and leave the New binder window open.
+    alert(err instanceof SyntaxError ? 'That file isn\'t a readable .JSON file.' : err.message);
+    return;
+  }
+  newBinderDialog.close('upload');   // not "create", so no empty binder is made
+  addUploadedBinder(binder);
+});
+
+// Check a binder file's data and pull out what the new binder needs.
+// Throws an error with a message to show if it isn't a binder file.
+function binderFromFile(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data) ||
+      !data.cards || typeof data.cards !== 'object' || Array.isArray(data.cards) ||
+      (data.app !== undefined && data.app !== FILE_APP_NAME)) {
+    throw new Error('That file isn\'t an MTG Card Binder binder file.');
+  }
+
+  // Keep only the valid cards in pockets that can exist (cleanCards is in
+  // binder-storage.js); "skipped" counts any that were thrown away.
+  const { cards, skipped } = cleanCards(data.cards);
+  const count = Object.keys(cards).length;
+
+  // Enough pages for the file's page count, for its cards, and for the
+  // highest page a card is on (never more than MAX_PAGES).
+  const highestPage = Math.max(0, ...Object.keys(cards).map((key) => Number(key.split('-')[0])));
+  const pages = Math.min(MAX_PAGES,
+    Math.max(cleanPageCount(data.pages), minPagesFor(count), highestPage));
+
+  const name = typeof data.name === 'string' && data.name.trim() ? data.name.trim() : nextBinderName();
+  return {
+    name: freeBinderName(name),
+    color: manaColor(data.color) ? data.color : null,   // an unknown symbol counts as none
+    cover: cleanCover(data.cover),                       // an unknown color counts as black
+    pages,
+    cards,
+    skipped
+  };
+}
+
+// The name for an uploaded binder: its own name if no binder has it yet.
+// Otherwise "Name (1)", or "(2)" if that's taken too, and so on. (A name
+// that already ends in "(3)" counts up from its plain name, so copies of
+// "Red (1)" are "Red (2)", "Red (3)" and so on.) Names keep to the
+// 12-character limit (so they fit on the cover), shortening the plain
+// name to make room for the number when needed.
+function freeBinderName(name) {
+  const NAME_LIMIT = 12;
+  const taken = new Set(loadBinderList().map((b) => b.name.toLowerCase()));
+  name = name.slice(0, NAME_LIMIT);
+  if (!taken.has(name.toLowerCase())) return name;
+
+  const plain = name.replace(/\s*\(\d+\)$/, '');
+  for (let number = 1; ; number++) {
+    const ending = ` (${number})`;
+    const candidate = plain.slice(0, NAME_LIMIT - ending.length).trimEnd() + ending;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+}
+
+// Make the uploaded binder: a new binder file in Google Drive (or on this
+// device, when used locally) with all its details and cards, added to the
+// end of the shelf.
+async function addUploadedBinder({ name, color, cover, pages, cards, skipped }) {
+  const binders = loadBinderList();
+  const addTile = document.getElementById('addBinderTile');
+  if (addTile) addTile.disabled = true;
+  setShelfMessage(`Adding ${name}…`);
+
+  try {
+    const file = await createBinderFile(name, cards, color, binders.length, cover, pages);   // google-drive.js
+    saveBinder(cards, file.id, { dirty: false });   // Drive already has these cards
+    binders.push({ id: file.id, name, color, cover, pages });
+    saveBinderList(binders);
+    renderShelf(binders);
+    const count = Object.keys(cards).length;
+    setShelfMessage(`✓ Added ${name} with ${cardCountText(count)}` +
+      (skipped > 0 ? ` (${skipped} unreadable entr${skipped === 1 ? 'y' : 'ies'} skipped).` : '.'));
+  } catch (err) {
+    if (err.signedOut) { showSignedOut(err.message); return; }
+    if (addTile) addTile.disabled = false;
+    setShelfMessage(`Couldn't add the binder to Google Drive. ${err.message}`, true);
+  }
 }
 
 /* =====================================================================

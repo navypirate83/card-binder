@@ -1126,8 +1126,10 @@ function openSharedLinkIfAny() {
 const targetBinderId = currentBinderId() || storageGet(LAST_BINDER_KEY) || null;
 
 // When logged in (LOGGED_IN, near the top of this file), show the
-// footer's "My Binders" link.
+// footer's "My Binders" link. When not, show its "Home" link instead, so
+// there's still a way back to the landing page to sign in.
 document.getElementById('myBindersItem').hidden = !LOGGED_IN;
+document.getElementById('homeItem').hidden = LOGGED_IN;
 
 // Show the footer link back to that binder, with its name (logged in only).
 if (LOGGED_IN && targetBinderId) {

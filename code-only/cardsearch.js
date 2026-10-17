@@ -911,6 +911,7 @@ function openSharedLinkIfAny() {
 const targetBinderId = currentBinderId() || storageGet(LAST_BINDER_KEY) || null;
 
 document.getElementById('myBindersItem').hidden = !LOGGED_IN;
+document.getElementById('homeItem').hidden = LOGGED_IN;
 
 if (LOGGED_IN && targetBinderId) {
   const backLink = document.getElementById('backToBinderLink');

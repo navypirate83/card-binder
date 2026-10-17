@@ -8,6 +8,7 @@ const signedInView   = document.getElementById('signedInView');
 const accountName    = document.getElementById('accountName');
 const footerSignOut  = document.getElementById('footerSignOut');
 const myBindersItem  = document.getElementById('myBindersItem');
+const helpItem       = document.getElementById('helpItem');
 const binderShelf    = document.getElementById('binderShelf');
 const shelfMessage   = document.getElementById('shelfMessage');
 const editBinderDialog   = document.getElementById('editBinderDialog');
@@ -48,6 +49,7 @@ function showSignedOut(message = '') {
   signedOutView.hidden = false;
   footerSignOut.hidden = true;
   myBindersItem.hidden = true;
+  helpItem.hidden = true;
   signInMessage.textContent = message;
   signInButton.disabled = false;
 }
@@ -81,6 +83,7 @@ function showLocalOnly() {
   signedOutView.hidden = true;
   signedInView.hidden = false;
   myBindersItem.hidden = false;
+  helpItem.hidden = false;
   showFooterAccountLink();
   accountName.textContent = 'Saved on this device only';
   renderShelf(loadBinderList());
@@ -92,6 +95,7 @@ async function showSignedIn() {
   signedInView.hidden = false;
   showFooterAccountLink();
   myBindersItem.hidden = false;
+  helpItem.hidden = false;
   renderShelf(loadBinderList());
   setShelfMessage('Loading your binders…');
 
@@ -159,7 +163,11 @@ function renderShelf(binders) {
     const coverWords = `, ${coverColorName(binder.cover)} cover`;
     tile.setAttribute('aria-label', `Open ${binder.name}${coverWords}${colorWords}, ${cardCountText(count)}`);
     tile.append(closedBinder(binder.name, binder.color, binder.cover), caption(cardCountText(count)));
-    binderShelf.appendChild(tile);
+
+    const slot = document.createElement('div');
+    slot.className = 'binder-slot';
+    slot.append(tile, downloadButton(binder));
+    binderShelf.appendChild(slot);
   }
 
   const addTile = document.createElement('button');
@@ -232,6 +240,156 @@ function caption(text) {
   return span;
 }
 
+function downloadButton(binder) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'binder-download';
+  button.title = `Download ${binder.name} as .JSON`;
+  button.setAttribute('aria-label', `Download ${binder.name} as a .JSON file`);
+  button.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>';
+  button.addEventListener('click', () => downloadBinder(binder.id, button));
+  return button;
+}
+
+async function downloadBinder(id, button) {
+  button.disabled = true;
+  if (!isLocalMode()) {
+    try { await syncBinder(id); } catch (err) {  }
+  }
+  button.disabled = false;
+
+  const data = binderFileData(id);
+  const file = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(file);
+  const safeName = data.name.replace(/[\\/:*?"<>|]/g, '');
+  link.download = `${safeName} ${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(link.href);   // free the memory the file was using
+}
+
+/* =====================================================================
+   UPLOADING A BINDER FROM A .JSON FILE
+   "Upload .JSON" in the New binder window opens the file picker. A
+   binder file (from the download button above) becomes a new binder at
+   the end of the shelf, with the file's name, cover symbol, cover color,
+   pages and cards. If a binder with that name already exists, the new
+   one is called "Name (1)", then "Name (2)", and so on.
+   ===================================================================== */
+
+const uploadBinderButton = document.getElementById('uploadBinderButton');
+const uploadBinderInput  = document.getElementById('uploadBinderInput');
+
+// Clicking "Upload .JSON" opens the (hidden) file picker.
+uploadBinderButton.addEventListener('click', () => uploadBinderInput.click());
+
+// A file was picked: read it, check it, and make the binder.
+uploadBinderInput.addEventListener('change', async () => {
+  const chosen = uploadBinderInput.files[0];
+  uploadBinderInput.value = '';     // so picking the same file again still works
+  if (!chosen) return;              // the picker was closed without a file
+
+  let binder;
+  try {
+    binder = binderFromFile(JSON.parse(await chosen.text()));
+  } catch (err) {
+    // Not a binder file: say why, and leave the New binder window open.
+    alert(err instanceof SyntaxError ? 'That file isn\'t a readable .JSON file.' : err.message);
+    return;
+  }
+  newBinderDialog.close('upload');   // not "create", so no empty binder is made
+  addUploadedBinder(binder);
+});
+
+// Check a binder file's data and pull out what the new binder needs.
+// Throws an error with a message to show if it isn't a binder file.
+function binderFromFile(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data) ||
+      !data.cards || typeof data.cards !== 'object' || Array.isArray(data.cards) ||
+      (data.app !== undefined && data.app !== FILE_APP_NAME)) {
+    throw new Error('That file isn\'t an MTG Card Binder binder file.');
+  }
+
+  // Keep only the valid cards in pockets that can exist (cleanCards is in
+  // binder-storage.js); "skipped" counts any that were thrown away.
+  const { cards, skipped } = cleanCards(data.cards);
+  const count = Object.keys(cards).length;
+
+  // Enough pages for the file's page count, for its cards, and for the
+  // highest page a card is on (never more than MAX_PAGES).
+  const highestPage = Math.max(0, ...Object.keys(cards).map((key) => Number(key.split('-')[0])));
+  const pages = Math.min(MAX_PAGES,
+    Math.max(cleanPageCount(data.pages), minPagesFor(count), highestPage));
+
+  const name = typeof data.name === 'string' && data.name.trim() ? data.name.trim() : nextBinderName();
+  return {
+    name: freeBinderName(name),
+    color: manaColor(data.color) ? data.color : null,   // an unknown symbol counts as none
+    cover: cleanCover(data.cover),                       // an unknown color counts as black
+    pages,
+    cards,
+    skipped
+  };
+}
+
+// The name for an uploaded binder: its own name if no binder has it yet.
+// Otherwise "Name (1)", or "(2)" if that's taken too, and so on. (A name
+// that already ends in "(3)" counts up from its plain name, so copies of
+// "Red (1)" are "Red (2)", "Red (3)" and so on.) Names keep to the
+// 12-character limit (so they fit on the cover), shortening the plain
+// name to make room for the number when needed.
+function freeBinderName(name) {
+  const NAME_LIMIT = 12;
+  const taken = new Set(loadBinderList().map((b) => b.name.toLowerCase()));
+  name = name.slice(0, NAME_LIMIT);
+  if (!taken.has(name.toLowerCase())) return name;
+
+  const plain = name.replace(/\s*\(\d+\)$/, '');
+  for (let number = 1; ; number++) {
+    const ending = ` (${number})`;
+    const candidate = plain.slice(0, NAME_LIMIT - ending.length).trimEnd() + ending;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+}
+
+// Make the uploaded binder: a new binder file in Google Drive (or on this
+// device, when used locally) with all its details and cards, added to the
+// end of the shelf.
+async function addUploadedBinder({ name, color, cover, pages, cards, skipped }) {
+  const binders = loadBinderList();
+  const addTile = document.getElementById('addBinderTile');
+  if (addTile) addTile.disabled = true;
+  setShelfMessage(`Adding ${name}…`);
+
+  try {
+    const file = await createBinderFile(name, cards, color, binders.length, cover, pages);   // google-drive.js
+    saveBinder(cards, file.id, { dirty: false });   // Drive already has these cards
+    binders.push({ id: file.id, name, color, cover, pages });
+    saveBinderList(binders);
+    renderShelf(binders);
+    const count = Object.keys(cards).length;
+    setShelfMessage(`✓ Added ${name} with ${cardCountText(count)}` +
+      (skipped > 0 ? ` (${skipped} unreadable entr${skipped === 1 ? 'y' : 'ies'} skipped).` : '.'));
+  } catch (err) {
+    if (err.signedOut) { showSignedOut(err.message); return; }
+    if (addTile) addTile.disabled = false;
+    setShelfMessage(`Couldn't add the binder to Google Drive. ${err.message}`, true);
+  }
+}
+
+/* =====================================================================
+   MAKING A NEW BINDER
+   (the New binder window itself is in binder-dialog.js, shared with the
+   card finder page)
+   ===================================================================== */
+
+// Make a new, empty binder file in Google Drive with the chosen name,
+// cover symbol and cover color, and add it to the end of the shelf.
 async function makeNewBinder(name, color, cover) {
   const binders = loadBinderList();
   const addTile = document.getElementById('addBinderTile');
@@ -239,6 +397,8 @@ async function makeNewBinder(name, color, cover) {
   setShelfMessage('Making a new binder…');
 
   try {
+    // The new binder goes at the end of the shelf (its position = how many
+    // binders came before it).
     const file = await createBinderFile(name, {}, color, binders.length, cover);
     saveBinder({}, file.id, { dirty: false });
     binders.push({ id: file.id, name, color, cover, pages: DEFAULT_PAGES });
@@ -255,36 +415,65 @@ async function makeNewBinder(name, color, cover) {
   }
 }
 
+/* =====================================================================
+   DRAGGING BINDERS: REARRANGE, EDIT OR DELETE
+   Pick up a binder and:
+   - drop it on another binder's spot to move it there (the others shift
+     along to make room), to put the binders in any order
+   - drop it on the pencil circle at the top to rename it or change its
+     symbol (the Binder properties window)
+   - drop it on the red X circle at the bottom to delete it (after asking)
+   With a mouse: press and move. On a phone: press and HOLD a moment until
+   it lifts, then slide. A plain click or tap still opens the binder.
+   Escape (or dropping it anywhere else) puts it back.
+   ===================================================================== */
+
+// How far the mouse must move (pixels) before a press becomes a drag.
 const DRAG_START_DISTANCE = 6;
 
+// How long (milliseconds) a finger must hold still to pick a binder up,
+// and how far it may wander meanwhile before it counts as scrolling.
 const HOLD_TO_DRAG_MS = 350;
 const HOLD_WOBBLE = 10;
 
+// How close (pixels from the center) a dragged binder must be to the edit
+// or delete circle to count as "over" it (the circles are 64px across).
 const DROP_ZONE_REACH = 52;
 
+// The drag in progress (null when nothing is being dragged). It holds the
+// binder's id, its tile on the shelf, the floating copy that follows the
+// pointer, where on the binder it was grabbed, and what's under it now.
 let drag = null;
 
+// A mouse press that might become a drag, a finger hold in progress, and
+// when the last drag ended (the click right after a drag is ignored, so
+// dropping a binder doesn't also open it).
 let pendingMouse = null;
 let holdTimer = null;
 let holdStart = null;
 let lastDragEnd = 0;
 
+// The binder tile (not the "+" one) under a point on the screen, if any.
+// The floating copy ignores the pointer, so this "sees" through it.
 function tileAt(x, y) {
   const element = document.elementFromPoint(x, y);
   const tile = element && element.closest('a.binder-tile');
   return tile && binderShelf.contains(tile) ? tile : null;
 }
 
+// Is the point within reach of a drop circle's center (and is it showing)?
 function overZone(zone, x, y) {
   const box = zone.getBoundingClientRect();
   if (box.width === 0) return false;
   return Math.hypot(x - (box.left + box.width / 2), y - (box.top + box.height / 2)) <= DROP_ZONE_REACH;
 }
 
+// Pick up a binder. (x, y) is where the pointer is.
 function beginDrag(tile, x, y) {
   const cover = tile.querySelector('.closed-binder');
   const box = cover.getBoundingClientRect();
 
+  // The floating copy: a clone of the binder's cover, the same size.
   const ghost = document.createElement('div');
   ghost.className = 'binder-ghost';
   ghost.style.width = `${box.width}px`;
@@ -293,11 +482,13 @@ function beginDrag(tile, x, y) {
   document.body.appendChild(ghost);
 
   drag = { id: tile.dataset.id, tile, ghost, grabX: x - box.left, grabY: y - box.top, target: null, zone: null };
-  tile.classList.add('drag-source');
-  document.body.classList.add('dragging');
+  tile.classList.add('drag-source');          // dim the binder left behind
+  document.body.classList.add('dragging');    // shows the edit and delete circles
   moveDrag(x, y);
 }
 
+// Move the floating copy with the pointer, and light up whatever it's over:
+// the edit circle, the delete circle, or another binder's spot.
 function moveDrag(x, y) {
   if (!drag) return;
   drag.ghost.style.transform =
@@ -307,7 +498,7 @@ function moveDrag(x, y) {
     : overZone(deleteDropZone, x, y) ? 'delete' : null;
   editDropZone.classList.toggle('active', drag.zone === 'edit');
   deleteDropZone.classList.toggle('active', drag.zone === 'delete');
-  drag.ghost.classList.toggle('over-zone', drag.zone !== null);
+  drag.ghost.classList.toggle('over-zone', drag.zone !== null);   // fade so the circle shows
 
   const target = drag.zone ? null : tileAt(x, y);
   const useful = target && target !== drag.tile ? target : null;
@@ -318,9 +509,10 @@ function moveDrag(x, y) {
   }
 }
 
+// Let go of the binder and do whatever it was dropped on.
 function endDrag(x, y) {
   if (!drag) return;
-  moveDrag(x, y);
+  moveDrag(x, y);   // make sure "what's underneath" is up to date
   const { id, zone, target } = drag;
   const targetId = target ? target.dataset.id : null;
   finishDrag();
@@ -330,6 +522,7 @@ function endDrag(x, y) {
   else if (targetId) moveBinder(id, targetId);
 }
 
+// Clean up after a drag: remove the floating copy, highlights and the circles.
 function finishDrag() {
   if (!drag) return;
   drag.ghost.remove();
@@ -342,6 +535,7 @@ function finishDrag() {
   lastDragEnd = Date.now();
 }
 
+// Move a binder to another binder's spot. The binders in between shift
 function moveBinder(id, targetId) {
   const binders = loadBinderList();
   const from = binders.findIndex((b) => b.id === id);

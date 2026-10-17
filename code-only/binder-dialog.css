@@ -192,6 +192,10 @@
   margin-top: 22px;
 }
 
+.dialog-buttons .upload-button { margin-right: auto; }
+
+.dialog-buttons:has(.upload-button) { flex-wrap: wrap; }
+
 .dialog-button {
   padding: 9px 18px;
   font: inherit;

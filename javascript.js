@@ -17,9 +17,6 @@ const binder      = document.getElementById('binder');
 const prevButton  = document.getElementById('prevPage');
 const nextButton  = document.getElementById('nextPage');
 const pageStatus  = document.getElementById('pageStatus');
-const downloadButton = document.getElementById('downloadJson');
-const uploadButton   = document.getElementById('uploadJson');
-const fileInput      = document.getElementById('jsonFileInput');
 const syncStatus     = document.getElementById('syncStatus');
 const syncConnect    = document.getElementById('syncConnect');
 
@@ -1030,106 +1027,6 @@ removeCardDialog.addEventListener('click', (event) => {
 const startPage = parseInt(new URLSearchParams(location.search).get('page'), 10);
 if (startPage >= 1 && startPage <= TOTAL_PAGES) currentPage = startPage;
 showPages();
-
-/* =====================================================================
-   DOWNLOAD / UPLOAD THE BINDER AS A .JSON FILE
-   JSON is a plain-text way of writing down data. The file looks like:
-     {
-       "app": "mtg-card-binder",
-       "version": 1,
-       "name": "Binder 1",
-       "color": "U",
-       "pages": 10,
-       "savedAt": "2026-10-13T18:30:00.000Z",
-       "cards": { "1-1": { "name": "...", "set": "...", ... }, ... }
-     }
-   where "1-1" means page 1, pocket 1. It's the same format as the binder's
-   file in Google Drive. Keep it as an extra backup, or upload it into any
-   binder to copy those cards in.
-   ===================================================================== */
-
-// DOWNLOAD: turn the binder into a .json file and save it.
-// The browser saves files from a link, so we make an invisible link to
-// the file's contents, "click" it, then clean up.
-downloadButton.addEventListener('click', () => {
-  const data = binderFileData(BINDER_ID);   // from binder-storage.js
-  // JSON.stringify writes the data as text; the "2" adds indenting so the
-  // file is easy to read in a text editor.
-  const file = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(file);
-  // e.g. "Binder 1 2026-10-13.json" (characters not allowed in file names removed)
-  const safeName = binderName(BINDER_ID).replace(/[\\/:*?"<>|]/g, '');
-  link.download = `${safeName} ${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(link.href);   // free the memory the file was using
-});
-
-// Using the app locally (no sign-in): no .JSON download or upload. The
-// two links (and the hidden file picker) are taken off the page.
-if (isLocalMode()) {
-  downloadButton.remove();
-  uploadButton.remove();
-  fileInput.remove();
-}
-
-// UPLOAD: the Upload button opens the (hidden) file picker.
-uploadButton.addEventListener('click', () => fileInput.click());
-
-// Read a chosen file, check it, and put its cards into the binder.
-fileInput.addEventListener('change', async () => {
-  const chosen = fileInput.files[0];
-  fileInput.value = '';             // so picking the same file again still works
-  if (!chosen) return;              // the picker was closed without a file
-
-  // Read the file's text and turn it back into data.
-  let data;
-  try {
-    data = JSON.parse(await chosen.text());
-  } catch (e) {
-    alert('That file isn\'t a readable .JSON file.');
-    return;
-  }
-
-  // Accept our own download format ({ cards: {...} }) or just the cards
-  // by themselves ({ "1-1": {...}, ... }).
-  const incoming = data && typeof data === 'object' && data.cards ? data.cards : data;
-  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
-    alert('That file doesn\'t contain any binder cards.');
-    return;
-  }
-
-  // Keep only the valid cards in pockets that exist (like "3-5").
-  // cleanCards() is in binder-storage.js.
-  const { cards, skipped } = cleanCards(incoming);
-
-  const count = Object.keys(cards).length;
-  if (count === 0) {
-    alert('No usable cards were found in that file.');
-    return;
-  }
-
-  // Uploading REPLACES the binder, so check first if it already has cards.
-  const current = Object.keys(binderCards).length;
-  if (current > 0 && !confirm(
-    `Replace the ${current} card${current === 1 ? '' : 's'} in your binder ` +
-    `with the ${count} card${count === 1 ? '' : 's'} from this file?`)) {
-    return;
-  }
-
-  if (!saveBinder(cards)) {
-    alert('Your browser blocked saving, so the binder could not be loaded.');
-    return;
-  }
-  if (skipped > 0) {
-    alert(`Loaded ${count} cards. ${skipped} entr${skipped === 1 ? 'y was' : 'ies were'} skipped because ${skipped === 1 ? 'it wasn\'t' : 'they weren\'t'} valid.`);
-  }
-  // Reload the page so every pocket is rebuilt from the new cards (it then
-  // saves them to Google Drive). Keep the same page open in the address.
-  location.href = `binder.html?binder=${encodeURIComponent(BINDER_ID)}&page=${currentPage}`;
-});
 
 /* =====================================================================
    SAVING TO GOOGLE DRIVE

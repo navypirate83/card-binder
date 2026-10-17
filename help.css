@@ -1,0 +1,208 @@
+/* =====================================================================
+   HELP PAGE (help.html)
+   The colors, top bar, light/dark switch and footer come from
+   landing.css (loaded first). These rules add the two columns: the
+   skinny topic list on the left and the wide instructions on the right.
+   ===================================================================== */
+
+/*
+  The two columns, side by side in a grid: the topic list is 220px wide,
+  the instructions take the rest ("1fr" = one share of what's left).
+  The whole thing is at most 1100px wide and centered, so lines of text
+  don't get too long to read on a big screen.
+  "display: grid" here replaces landing.css's column layout for <main>.
+*/
+.help-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 32px;
+  align-items: start;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 8px 24px 40px;
+  box-sizing: border-box;
+}
+
+/* =====================================================================
+   THE SKINNY LEFT COLUMN: help topics
+   ===================================================================== */
+
+/*
+  The topic list. "position: sticky" keeps it in view while the
+  instructions scroll past, 16px from the top of the window.
+  If it's taller than the window it scrolls by itself (the 59px leaves
+  room for the footer pinned at the bottom).
+*/
+.help-nav {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100svh - 59px - 32px);
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+/* "HELP": the small heading at the top of the list */
+.help-nav-title {
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The lists: no bullets, no indent */
+.help-topics,
+.help-sections {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Some space between one page's topic and the next */
+.help-topics > li + li { margin-top: 6px; }
+
+/* Every link in the list: plain text color, no underline, a rounded
+   highlight area that fills the column's width */
+.help-nav a {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.3;
+}
+
+/* Mouse over a link: a light tint of the accent color */
+.help-nav a:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* A page's link (My Binders, Binder pages, MTG Card Finder): bold */
+.help-topic { font-weight: 700; }
+
+/* The page being shown, and the section picked: in the accent color,
+   with a slightly stronger tint */
+.help-nav a[aria-current] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/*
+  Each page's section links: smaller, indented, in the muted color, with
+  a thin line down their left side to show they belong to the page above.
+  They're hidden except under the page being shown (help.js adds "open").
+*/
+.help-sections {
+  display: none;
+  margin: 4px 0 4px 12px;
+  padding-left: 8px;
+  border-left: 2px solid var(--border);
+}
+.help-topics > li.open .help-sections { display: block; }
+.help-sections a {
+  padding: 4px 10px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* =====================================================================
+   THE WIDE RIGHT COLUMN: the instructions
+   ===================================================================== */
+
+/*
+  The instructions box: the page's surface color with a border, like the
+  topic list. "min-width: 0" lets it shrink inside the grid instead of
+  pushing the page wider than the window.
+*/
+.help-content {
+  min-width: 0;
+  padding: 8px 32px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  line-height: 1.6;
+}
+
+/* The page's title at the top of its instructions */
+.help-article h2 {
+  margin: 20px 0 8px;
+  font-size: 1.6rem;
+}
+
+/* The first paragraph: a short summary of what the page is for */
+.help-lead {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  color: var(--muted);
+}
+
+/*
+  Each section: a thin line above it to separate it from the one before.
+  "scroll-margin-top" leaves a gap above a section when a link jumps to
+  it, so its heading isn't jammed against the top of the window.
+*/
+.help-article section {
+  padding-top: 8px;
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  scroll-margin-top: 16px;
+}
+
+/* A section's heading, in the accent color */
+.help-article h3 {
+  margin: 8px 0 6px;
+  font-size: 1.15rem;
+  color: var(--accent);
+}
+
+/* Paragraphs and lists: a little space between them */
+.help-article p { margin: 8px 0; }
+.help-article ul,
+.help-article ol { margin: 8px 0; padding-left: 1.4em; }
+.help-article li + li { margin-top: 6px; }
+
+/* Links inside the instructions, in the accent color */
+.help-article a { color: var(--accent); }
+
+/* =====================================================================
+   PHONES AND NARROW WINDOWS (700px wide or less)
+   One column instead of two: the topic list sits above the
+   instructions, showing just the three pages side by side (the section
+   links are hidden, since the instructions are right below).
+   ===================================================================== */
+@media (max-width: 700px) {
+  .help-layout {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 4px 16px 32px;
+  }
+
+  /* No longer sticky or limited in height: it's a short row at the top */
+  .help-nav {
+    position: static;
+    max-height: none;
+    padding: 10px;
+  }
+  .help-nav-title { display: none; }
+
+  /* The three pages in a row, sharing the width, centered text */
+  .help-topics {
+    display: flex;
+    gap: 6px;
+  }
+  .help-topics > li { flex: 1; }
+  .help-topics > li + li { margin-top: 0; }
+  .help-topic { text-align: center; font-size: 0.9rem; }
+
+  /* No section links on a phone (even under the page being shown) */
+  .help-topics > li.open .help-sections { display: none; }
+
+  /* Less padding inside the instructions box, to save space */
+  .help-content { padding: 4px 16px 20px; }
+  .help-article h2 { font-size: 1.35rem; }
+}
