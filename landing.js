@@ -226,6 +226,9 @@ async function moveOldCardsIntoFirstBinder() {
 // Draw the shelf: a closed binder for each binder (a link that opens it),
 // then the "+" binder for making a new one.
 function renderShelf(binders) {
+  // Was the keyboard on the shelf? Redrawing replaces every binder, so the
+  // keyboard is put back afterwards (see USING THE KEYBOARD).
+  const keyboardWasHere = binderShelf.contains(document.activeElement);
   binderShelf.replaceChildren();
 
   for (const binder of binders) {
@@ -269,6 +272,7 @@ function renderShelf(binders) {
   binderShelf.appendChild(addTile);
 
   fitCoverLabels();
+  setShelfTabStop(keyboardWasHere);   // see USING THE KEYBOARD
 }
 
 // Make sure every name fits on one line of its cover label: if a name is
@@ -363,6 +367,9 @@ function downloadButton(binder) {
     'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>';
   button.addEventListener('click', () => downloadBinder(binder.id, button));
+  // For the mouse and fingers: the Tab key skips it, since keyboard users
+  // press D on the binder instead (see USING THE KEYBOARD).
+  button.tabIndex = -1;
   return button;
 }
 
@@ -946,6 +953,294 @@ deleteBinderDialog.addEventListener('close', async () => {
 });
 closeOnBackdropClick(deleteBinderDialog);
 
+/* =====================================================================
+   USING THE KEYBOARD
+   Everything the mouse does to binders on the shelf can also be done
+   with keys. Press Tab to get onto the shelf (it lands on one binder),
+   then:
+     Arrow keys   move from binder to binder (← → along a row, ↑ ↓
+                  between rows, however many fit across the screen).
+                  The "+" New binder spot is the last stop.
+     Home / End   the first binder / the "+" New binder spot
+     Enter        open the binder (or, on "+", the New binder window)
+     Space        pick the binder up to move it: the arrow keys choose
+                  its new spot (a dashed outline shows it), Space or
+                  Enter drops it there (the binders in between shift
+                  along, like dragging), and Escape puts it back
+     E            Binder properties (like dropping it on the pencil)
+     Delete       delete the binder (it asks first)
+     D            download the binder as a .JSON file
+     N            the New binder window, from any binder
+     ?            (anywhere on the page) the Keyboard shortcuts window
+   A small guide at the top of the page shows the keys while the keyboard
+   is on the shelf, and each step is read out by screen readers through a
+   hidden message area (#shelfAnnouncer in index.html).
+   ===================================================================== */
+
+const keyboardHint   = document.getElementById('keyboardHint');    // the visible key guide
+const shelfAnnouncer = document.getElementById('shelfAnnouncer');  // read out by screen readers
+
+// The spot on the shelf the keyboard is on: a binder's id, or "add" for
+// the "+" New binder spot. Only that spot can be reached with the Tab key
+// (tabIndex 0; every other spot has -1), so Tab goes onto the shelf ONCE
+// and the arrow keys move around on it. "shelfKeyIndex" remembers its
+// position too, so if that binder is deleted the keyboard lands on the
+// one that takes its place.
+let shelfKeyId = null;
+let shelfKeyIndex = 0;
+
+// The binder being moved with the keyboard: { id }, or null.
+let carryingBinder = null;
+
+// True after E, Delete or N opened a window from the keyboard, so the
+// keyboard goes back to the shelf when that window closes.
+let keyboardOpenedWindow = false;
+
+// Every spot on the shelf in order: each binder, then the "+" spot.
+function shelfStops() {
+  return [...binderShelf.querySelectorAll('a.binder-tile, #addBinderTile')];
+}
+
+// The id of a spot: the binder's id, or "add" for the "+" spot.
+function stopId(stop) {
+  return stop.id === 'addBinderTile' ? 'add' : stop.dataset.id;
+}
+
+// Make the keyboard's spot the one the Tab key reaches (and only that
+// one). If its binder is gone (deleted), use the spot now in its place.
+// "focus" true also moves the keyboard there. Called by renderShelf after
+// every redraw, and by the arrow keys.
+function setShelfTabStop(focus = false) {
+  const stops = shelfStops();
+  if (stops.length === 0) return;
+  let index = stops.findIndex((stop) => stopId(stop) === shelfKeyId);
+  if (index < 0) index = Math.min(shelfKeyIndex, stops.length - 1);
+  stops.forEach((stop, i) => { stop.tabIndex = i === index ? 0 : -1; });
+  shelfKeyId = stopId(stops[index]);
+  shelfKeyIndex = index;
+  if (focus) stops[index].focus();
+}
+
+// Say something to screen readers. (Emptying the area first makes a
+// screen reader read the message even if it's the same as the last one.)
+function announce(text) {
+  shelfAnnouncer.textContent = '';
+  setTimeout(() => { shelfAnnouncer.textContent = text; }, 50);
+}
+
+// How many spots fit across one row of the shelf right now: the spots
+// sitting at the same height as the first one.
+function shelfColumns(stops) {
+  const top = Math.round(stops[0].getBoundingClientRect().top);
+  return stops.filter((stop) => Math.round(stop.getBoundingClientRect().top) === top).length;
+}
+
+// The binder's name for announcements, e.g. "Red".
+function binderNameOf(id) {
+  const found = loadBinderList().find((b) => b.id === id);
+  return found ? found.name : 'Binder';
+}
+
+// Go to the spot at a position on the shelf. While moving a binder, the
+// dashed "goes here" outline moves with it.
+function goToStop(index) {
+  const stops = shelfStops();
+  shelfKeyIndex = index;
+  shelfKeyId = stopId(stops[index]);
+  setShelfTabStop(true);
+  if (carryingBinder) {
+    stops.forEach((stop) => stop.classList.remove('drop-target'));
+    if (shelfKeyId !== carryingBinder.id) stops[index].classList.add('drop-target');
+    const binderCount = stops.length - 1;   // not counting the "+" spot
+    announce(shelfKeyId === carryingBinder.id
+      ? `Back at spot ${index + 1} of ${binderCount}, where it started.`
+      : `Spot ${index + 1} of ${binderCount}, where ${binderNameOf(shelfKeyId)} is now.`);
+  }
+  updateKeyboardHint();
+}
+
+// An arrow key (or Home / End): work out the spot to go to. Up and down
+// jump a whole row; down from a row above the last one, with nothing
+// right below, goes to the last spot. While moving a binder, the "+" spot
+// is skipped (a binder can't go after it).
+function arrowToStop(key) {
+  const stops = shelfStops();
+  const last = carryingBinder ? stops.length - 2 : stops.length - 1;
+  const columns = shelfColumns(stops);
+  const here = stops.findIndex((stop) => stopId(stop) === shelfKeyId);
+  let next = here;
+  if (key === 'ArrowLeft') next = here - 1;
+  if (key === 'ArrowRight') next = here + 1;
+  if (key === 'ArrowUp') next = here - columns >= 0 ? here - columns : here;
+  if (key === 'ArrowDown') {
+    const onLastRow = Math.floor(here / columns) === Math.floor(last / columns);
+    next = onLastRow ? here : Math.min(here + columns, last);
+  }
+  if (key === 'Home') next = 0;
+  if (key === 'End') next = last;
+  goToStop(Math.max(0, Math.min(last, next)));
+}
+
+// Space on a binder: pick it up to move it. It fades, like a dragged one.
+function pickUpBinder(id) {
+  carryingBinder = { id };
+  binderShelf.querySelector(`a.binder-tile[data-id="${id}"]`).classList.add('drag-source');
+  announce(`Picked up ${binderNameOf(id)}. Use the arrow keys to choose its new spot, ` +
+    'then Space to drop it, or Escape to cancel.');
+  updateKeyboardHint();
+}
+
+// Stop moving: clear the faded binder and the dashed outline.
+function stopCarryingBinder() {
+  carryingBinder = null;
+  binderShelf.querySelectorAll('.drag-source, .drop-target')
+    .forEach((tile) => tile.classList.remove('drag-source', 'drop-target'));
+  updateKeyboardHint();
+}
+
+// Space or Enter while moving: put the binder in the keyboard's spot,
+// using the same moveBinder as dragging (which saves the new order). The
+// keyboard stays on the moved binder.
+function dropBinder() {
+  const id = carryingBinder.id;
+  const targetId = shelfKeyId;
+  stopCarryingBinder();
+  if (targetId === id) { announce(`${binderNameOf(id)} stays where it was.`); return; }
+  shelfKeyId = id;
+  moveBinder(id, targetId);
+  const spot = loadBinderList().findIndex((b) => b.id === id) + 1;
+  announce(`Moved ${binderNameOf(id)} to spot ${spot} of ${loadBinderList().length}.`);
+}
+
+// Escape (or Tab, or the mouse taking over) while moving: put it back.
+function cancelCarryingBinder() {
+  const id = carryingBinder.id;
+  stopCarryingBinder();
+  announce(`Cancelled. ${binderNameOf(id)} stays where it was.`);
+}
+
+// The key guide at the top of the page: which keys do what right now.
+// It shows while the keyboard is on the shelf (or a binder is being
+// moved), and hides otherwise. aria-hidden in index.html, since screen
+// readers get the same help from the announcements.
+function updateKeyboardHint() {
+  const focused = document.activeElement;
+  const onShelf = focused && binderShelf.contains(focused) &&
+    focused.matches('a.binder-tile:focus-visible, #addBinderTile:focus-visible');
+  if (carryingBinder) {
+    keyboardHint.textContent = `Moving ${binderNameOf(carryingBinder.id)}: ` +
+      '←↑↓→ choose a spot · Space or Enter drop · Esc cancel';
+  } else if (onShelf && shelfKeyId === 'add') {
+    keyboardHint.textContent = '←↑↓→ move · Enter new binder · Home / End first / last · ? all keys';
+  } else if (onShelf) {
+    keyboardHint.textContent = '←↑↓→ move · Enter open · Space pick up · E edit · ' +
+      'Del delete · D download · N new binder · ? all keys';
+  }
+  keyboardHint.hidden = !(carryingBinder || onShelf);
+}
+
+// The keys, while the keyboard is on a spot of the shelf (not while
+// dragging with the mouse, and not with Ctrl / Alt / ⌘ held, which belong
+// to the browser).
+binderShelf.addEventListener('keydown', (event) => {
+  const stop = event.target.closest('a.binder-tile, #addBinderTile');
+  if (!stop || drag) return;
+  if (event.ctrlKey || event.altKey || event.metaKey) return;
+
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
+    event.preventDefault();              // don't scroll the page
+    arrowToStop(event.key);
+    return;
+  }
+
+  // While moving a binder: drop, cancel, or (Tab) give up and move on.
+  if (carryingBinder) {
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();            // Enter mustn't open the binder here
+      dropBinder();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelCarryingBinder();
+    } else if (event.key === 'Tab') {
+      cancelCarryingBinder();            // the Tab still moves on as usual
+    }
+    return;
+  }
+
+  // N works on any spot: the New binder window.
+  if (event.key === 'n' || event.key === 'N') {
+    event.preventDefault();
+    keyboardOpenedWindow = true;
+    openNewBinderDialog(makeNewBinder);  // binder-dialog.js
+    return;
+  }
+
+  // The rest only do something on a binder (on the "+" spot, Enter and
+  // Space press it like a button, as usual). Enter on a binder is left
+  // alone too, so it opens the binder like a click.
+  if (stopId(stop) === 'add') return;
+  const id = stop.dataset.id;
+  if (event.key === ' ') {
+    event.preventDefault();              // don't scroll the page
+    pickUpBinder(id);
+  } else if (event.key === 'e' || event.key === 'E') {
+    event.preventDefault();
+    keyboardOpenedWindow = true;
+    openEditDialog(id);
+  } else if (event.key === 'Delete' || event.key === 'Backspace') {
+    event.preventDefault();
+    keyboardOpenedWindow = true;
+    openDeleteDialog(id);
+  } else if (event.key === 'd' || event.key === 'D') {
+    event.preventDefault();
+    downloadBinder(id, stop.parentElement.querySelector('.binder-download'));
+    announce(`Downloading ${binderNameOf(id)}.`);
+  }
+});
+
+// When the keyboard arrives on a spot (by Tab, arrows or a click), that
+// spot becomes the keyboard's spot, and the key guide updates. When it
+// leaves the shelf, the guide hides (checked a moment later, once the
+// browser has settled where the focus went).
+binderShelf.addEventListener('focusin', (event) => {
+  const stop = event.target.closest('a.binder-tile, #addBinderTile');
+  if (stop) {
+    shelfKeyId = stopId(stop);
+    shelfKeyIndex = shelfStops().indexOf(stop);
+    setShelfTabStop();
+  }
+  updateKeyboardHint();
+});
+binderShelf.addEventListener('focusout', () => setTimeout(updateKeyboardHint, 0));
+
+// Starting a mouse or finger drag while moving a binder with the keyboard:
+// the keyboard's binder goes back first, so only one binder moves at a time.
+binderShelf.addEventListener('pointerdown', () => { if (carryingBinder) cancelCarryingBinder(); }, true);
+
+// After a window opened from the keyboard (E, Delete or N) closes, put the
+// keyboard back on the shelf. (Saving redraws the shelf, so the browser's
+// own "return focus" can land on a binder that's been replaced.)
+// "setTimeout" waits until the window has closed and the shelf is redrawn.
+for (const dialog of [editBinderDialog, deleteBinderDialog, newBinderDialog]) {
+  dialog.addEventListener('close', () => {
+    if (!keyboardOpenedWindow) return;
+    keyboardOpenedWindow = false;
+    setTimeout(() => setShelfTabStop(true), 0);
+  });
+}
+// The ? key, anywhere on the page: open the Keyboard shortcuts window
+// (#shortcutsDialog in index.html), which lists the keys above. Not while
+// typing in a box (like a binder's name) or with another window open.
+const shortcutsDialog = document.getElementById('shortcutsDialog');
+document.addEventListener('keydown', (event) => {
+  if (event.key !== '?' || event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.target.closest('input, textarea, select')) return;
+  if (document.querySelector('dialog[open]')) return;
+  event.preventDefault();
+  if (carryingBinder) cancelCarryingBinder();   // put a moving binder back first
+  shortcutsDialog.showModal();
+});
+closeOnBackdropClick(shortcutsDialog);   // binder-dialog.js: a click outside closes it
 /* =====================================================================
    STARTUP — everything that runs once when the page opens
    ===================================================================== */

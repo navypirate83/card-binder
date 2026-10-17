@@ -77,8 +77,10 @@
   line-height: 1.3;
 }
 
-/* Mouse over a link: a light tint of the accent color */
+/* Mouse over a link: it turns orange (the accent color, like the site's
+   other links) on a light tint of the same color */
 .help-nav a:hover {
+  color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
@@ -221,3 +223,9 @@
 .help-article a:hover {
   -webkit-text-stroke: 0.04em currentColor;
 }
+
+/* (The Keyboard shortcuts window's list and key boxes are styled in
+   landing.css, which this page loads too.) */
+
+/* The note under the list, about the other pages' keys */
+.shortcut-note { margin-top: 16px; }

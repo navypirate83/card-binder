@@ -43,3 +43,15 @@ function showTopic() {
 
 window.addEventListener('hashchange', showTopic);
 showTopic();
+
+const shortcutsDialog = document.getElementById('shortcutsDialog');
+document.addEventListener('keydown', (event) => {
+  if (event.key !== '?' || event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.target.closest('input, textarea, select')) return;
+  if (shortcutsDialog.open) return;
+  event.preventDefault();
+  shortcutsDialog.showModal();
+});
+shortcutsDialog.addEventListener('click', (event) => {
+  if (event.target === shortcutsDialog) shortcutsDialog.close('close');
+});

@@ -149,6 +149,7 @@ async function moveOldCardsIntoFirstBinder() {
 }
 
 function renderShelf(binders) {
+  const keyboardWasHere = binderShelf.contains(document.activeElement);
   binderShelf.replaceChildren();
 
   for (const binder of binders) {
@@ -185,6 +186,7 @@ function renderShelf(binders) {
   binderShelf.appendChild(addTile);
 
   fitCoverLabels();
+  setShelfTabStop(keyboardWasHere);
 }
 
 function fitCoverLabels() {
@@ -251,6 +253,7 @@ function downloadButton(binder) {
     'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>';
   button.addEventListener('click', () => downloadBinder(binder.id, button));
+  button.tabIndex = -1;
   return button;
 }
 
@@ -759,6 +762,214 @@ deleteBinderDialog.addEventListener('close', async () => {
   }
 });
 closeOnBackdropClick(deleteBinderDialog);
+
+const keyboardHint   = document.getElementById('keyboardHint');
+const shelfAnnouncer = document.getElementById('shelfAnnouncer');
+
+let shelfKeyId = null;
+let shelfKeyIndex = 0;
+
+let carryingBinder = null;
+
+let keyboardOpenedWindow = false;
+
+function shelfStops() {
+  return [...binderShelf.querySelectorAll('a.binder-tile, #addBinderTile')];
+}
+
+function stopId(stop) {
+  return stop.id === 'addBinderTile' ? 'add' : stop.dataset.id;
+}
+
+function setShelfTabStop(focus = false) {
+  const stops = shelfStops();
+  if (stops.length === 0) return;
+  let index = stops.findIndex((stop) => stopId(stop) === shelfKeyId);
+  if (index < 0) index = Math.min(shelfKeyIndex, stops.length - 1);
+  stops.forEach((stop, i) => { stop.tabIndex = i === index ? 0 : -1; });
+  shelfKeyId = stopId(stops[index]);
+  shelfKeyIndex = index;
+  if (focus) stops[index].focus();
+}
+
+function announce(text) {
+  shelfAnnouncer.textContent = '';
+  setTimeout(() => { shelfAnnouncer.textContent = text; }, 50);
+}
+
+function shelfColumns(stops) {
+  const top = Math.round(stops[0].getBoundingClientRect().top);
+  return stops.filter((stop) => Math.round(stop.getBoundingClientRect().top) === top).length;
+}
+
+function binderNameOf(id) {
+  const found = loadBinderList().find((b) => b.id === id);
+  return found ? found.name : 'Binder';
+}
+
+function goToStop(index) {
+  const stops = shelfStops();
+  shelfKeyIndex = index;
+  shelfKeyId = stopId(stops[index]);
+  setShelfTabStop(true);
+  if (carryingBinder) {
+    stops.forEach((stop) => stop.classList.remove('drop-target'));
+    if (shelfKeyId !== carryingBinder.id) stops[index].classList.add('drop-target');
+    const binderCount = stops.length - 1;
+    announce(shelfKeyId === carryingBinder.id
+      ? `Back at spot ${index + 1} of ${binderCount}, where it started.`
+      : `Spot ${index + 1} of ${binderCount}, where ${binderNameOf(shelfKeyId)} is now.`);
+  }
+  updateKeyboardHint();
+}
+
+function arrowToStop(key) {
+  const stops = shelfStops();
+  const last = carryingBinder ? stops.length - 2 : stops.length - 1;
+  const columns = shelfColumns(stops);
+  const here = stops.findIndex((stop) => stopId(stop) === shelfKeyId);
+  let next = here;
+  if (key === 'ArrowLeft') next = here - 1;
+  if (key === 'ArrowRight') next = here + 1;
+  if (key === 'ArrowUp') next = here - columns >= 0 ? here - columns : here;
+  if (key === 'ArrowDown') {
+    const onLastRow = Math.floor(here / columns) === Math.floor(last / columns);
+    next = onLastRow ? here : Math.min(here + columns, last);
+  }
+  if (key === 'Home') next = 0;
+  if (key === 'End') next = last;
+  goToStop(Math.max(0, Math.min(last, next)));
+}
+
+function pickUpBinder(id) {
+  carryingBinder = { id };
+  binderShelf.querySelector(`a.binder-tile[data-id="${id}"]`).classList.add('drag-source');
+  announce(`Picked up ${binderNameOf(id)}. Use the arrow keys to choose its new spot, ` +
+    'then Space to drop it, or Escape to cancel.');
+  updateKeyboardHint();
+}
+
+function stopCarryingBinder() {
+  carryingBinder = null;
+  binderShelf.querySelectorAll('.drag-source, .drop-target')
+    .forEach((tile) => tile.classList.remove('drag-source', 'drop-target'));
+  updateKeyboardHint();
+}
+
+function dropBinder() {
+  const id = carryingBinder.id;
+  const targetId = shelfKeyId;
+  stopCarryingBinder();
+  if (targetId === id) { announce(`${binderNameOf(id)} stays where it was.`); return; }
+  shelfKeyId = id;
+  moveBinder(id, targetId);
+  const spot = loadBinderList().findIndex((b) => b.id === id) + 1;
+  announce(`Moved ${binderNameOf(id)} to spot ${spot} of ${loadBinderList().length}.`);
+}
+
+function cancelCarryingBinder() {
+  const id = carryingBinder.id;
+  stopCarryingBinder();
+  announce(`Cancelled. ${binderNameOf(id)} stays where it was.`);
+}
+
+function updateKeyboardHint() {
+  const focused = document.activeElement;
+  const onShelf = focused && binderShelf.contains(focused) &&
+    focused.matches('a.binder-tile:focus-visible, #addBinderTile:focus-visible');
+  if (carryingBinder) {
+    keyboardHint.textContent = `Moving ${binderNameOf(carryingBinder.id)}: ` +
+      '←↑↓→ choose a spot · Space or Enter drop · Esc cancel';
+  } else if (onShelf && shelfKeyId === 'add') {
+    keyboardHint.textContent = '←↑↓→ move · Enter new binder · Home / End first / last · ? all keys';
+  } else if (onShelf) {
+    keyboardHint.textContent = '←↑↓→ move · Enter open · Space pick up · E edit · ' +
+      'Del delete · D download · N new binder · ? all keys';
+  }
+  keyboardHint.hidden = !(carryingBinder || onShelf);
+}
+
+binderShelf.addEventListener('keydown', (event) => {
+  const stop = event.target.closest('a.binder-tile, #addBinderTile');
+  if (!stop || drag) return;
+  if (event.ctrlKey || event.altKey || event.metaKey) return;
+
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
+    event.preventDefault();
+    arrowToStop(event.key);
+    return;
+  }
+
+  if (carryingBinder) {
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();
+      dropBinder();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelCarryingBinder();
+    } else if (event.key === 'Tab') {
+      cancelCarryingBinder();
+    }
+    return;
+  }
+
+  if (event.key === 'n' || event.key === 'N') {
+    event.preventDefault();
+    keyboardOpenedWindow = true;
+    openNewBinderDialog(makeNewBinder);
+    return;
+  }
+
+  if (stopId(stop) === 'add') return;
+  const id = stop.dataset.id;
+  if (event.key === ' ') {
+    event.preventDefault();
+    pickUpBinder(id);
+  } else if (event.key === 'e' || event.key === 'E') {
+    event.preventDefault();
+    keyboardOpenedWindow = true;
+    openEditDialog(id);
+  } else if (event.key === 'Delete' || event.key === 'Backspace') {
+    event.preventDefault();
+    keyboardOpenedWindow = true;
+    openDeleteDialog(id);
+  } else if (event.key === 'd' || event.key === 'D') {
+    event.preventDefault();
+    downloadBinder(id, stop.parentElement.querySelector('.binder-download'));
+    announce(`Downloading ${binderNameOf(id)}.`);
+  }
+});
+
+binderShelf.addEventListener('focusin', (event) => {
+  const stop = event.target.closest('a.binder-tile, #addBinderTile');
+  if (stop) {
+    shelfKeyId = stopId(stop);
+    shelfKeyIndex = shelfStops().indexOf(stop);
+    setShelfTabStop();
+  }
+  updateKeyboardHint();
+});
+binderShelf.addEventListener('focusout', () => setTimeout(updateKeyboardHint, 0));
+
+binderShelf.addEventListener('pointerdown', () => { if (carryingBinder) cancelCarryingBinder(); }, true);
+
+for (const dialog of [editBinderDialog, deleteBinderDialog, newBinderDialog]) {
+  dialog.addEventListener('close', () => {
+    if (!keyboardOpenedWindow) return;
+    keyboardOpenedWindow = false;
+    setTimeout(() => setShelfTabStop(true), 0);
+  });
+}
+const shortcutsDialog = document.getElementById('shortcutsDialog');
+document.addEventListener('keydown', (event) => {
+  if (event.key !== '?' || event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.target.closest('input, textarea, select')) return;
+  if (document.querySelector('dialog[open]')) return;
+  event.preventDefault();
+  if (carryingBinder) cancelCarryingBinder();
+  shortcutsDialog.showModal();
+});
+closeOnBackdropClick(shortcutsDialog);
 
 initGoogleSignIn().catch((err) => {
   if (signedOutView.hidden === false) signInMessage.textContent = err.message;

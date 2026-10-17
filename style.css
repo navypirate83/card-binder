@@ -19,6 +19,11 @@
   --muted: #6c675f;
   --border: #d8d2c6;
   --accent: #a8492a;
+  /* The bright orange (dark mode's accent), used in BOTH themes for things
+     that always sit on black, like the "+" in empty pockets and the
+     "− 3 +" buttons on cards, where the darker light-mode orange would be
+     hard to see */
+  --accent-on-dark: #e38a5c;
   --switch-track: #e3dccf;
   --switch-thumb: #ffffff;
 
@@ -413,10 +418,13 @@ main {
   text-decoration: none;
 }
 
-/* ...and a bold "+" when the mouse is over it (or it's reached by Tab) */
+/* ...and a bold, orange "+" when the mouse is over it (or it's reached by
+   Tab), like the other links. (It's centered in the pocket, so getting
+   bolder doesn't move anything.) */
 .pocket-add:hover,
 .pocket-add:focus-visible {
   font-weight: 800;
+  color: var(--accent-on-dark);
 }
 
 /* A pocket that holds a card: the whole card picture is a link */
@@ -479,9 +487,15 @@ main {
   cursor: pointer;
   touch-action: manipulation;   /* no double-tap zoom when tapping quickly */
 }
+/* Mouse over "−" or "+" (or reached by Tab): it turns orange and bold,
+   like the links, on a faint light circle. The bold is a thin outline in
+   its own color ("-webkit-text-stroke"), so the sign doesn't change size
+   and the number beside it doesn't move. */
 .copies-bar button:hover:not(:disabled),
 .copies-bar button:focus-visible {
-  background: rgba(255, 255, 255, 0.2);
+  color: var(--accent-on-dark);
+  -webkit-text-stroke: 0.06em currentColor;
+  background: rgba(255, 255, 255, 0.12);
   outline: none;
 }
 
@@ -1158,3 +1172,85 @@ body { padding-bottom: 43px; }
 .footer-signout:hover:not(:disabled) {
   -webkit-text-stroke: 0.04em currentColor;
 }
+
+/* =====================================================================
+   USING THE KEYBOARD (see USING THE KEYBOARD in javascript.js)
+   ===================================================================== */
+
+/*
+  Hidden from view but still read by screen readers: the message area
+  that says what the keyboard just did ("Picked up Lightning Bolt…").
+  (display: none would hide it from screen readers too, so instead it's
+  shrunk to 1px and clipped.)
+*/
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/*
+  The key guide: a small dark pill pinned to the top middle of the window,
+  just under the top bar, listing the keys that work right now. It only
+  shows while the keyboard is in the binder (javascript.js takes away
+  "hidden"). "pointer-events: none" lets clicks pass through it, and
+  "nowrap" + "ellipsis" keep it to one line on narrow screens.
+*/
+.keyboard-hint {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: calc(100vw - 32px);
+  padding: 5px 14px;
+  font-size: 0.8rem;
+  color: #f4efe7;
+  background: rgba(20, 21, 26, 0.92);
+  border: 1px solid var(--accent-on-dark);
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.keyboard-hint[hidden] { display: none; }
+
+/* While carrying a card with the keyboard, the pocket it would drop into
+   shows only the dashed "drop here" outline (not the keyboard's solid
+   outline on top of it), so it looks just like dragging with the mouse */
+.pocket.drop-target > a:focus-visible { outline: none; }
+
+/* A key, like "M" or "Space": a small rounded box with a border, the way
+   keys are usually shown in instructions (used in the Keyboard shortcuts
+   window) */
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 1px 5px;
+  font-family: inherit;
+  font-size: 0.85em;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+
+/* The list in the Keyboard shortcuts window: the keys in a narrow column
+   on the left, what they do on the right (a two-column grid) */
+.shortcut-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px 16px;
+  align-items: center;
+  margin: 0;
+}
+.shortcut-list dt { white-space: nowrap; }
+.shortcut-list dd { margin: 0; font-size: 0.95rem; }

@@ -450,7 +450,9 @@ searchInput.addEventListener('input', () => {
   typingTimer = timer;
 });
 
-// Keyboard controls for the search box: arrows move, Enter picks, Esc closes.
+// Keyboard controls for the search box: arrows move, Enter picks, Esc
+// closes the list (and, with no list open, leaves the search box, so the
+// shortcut keys work: see USING THE KEYBOARD).
 searchInput.addEventListener('keydown', (event) => {
   const count = state.suggestions.length;
 
@@ -471,8 +473,13 @@ searchInput.addEventListener('keydown', (event) => {
       loadCardByName(searchInput.value.trim(), false);
     }
   } else if (event.key === 'Escape') {
+    const listWasOpen = !suggestionsEl.hidden;
     cancelPendingSearch();
     hideSuggestions();
+    if (!listWasOpen) {
+      searchInput.blur();
+      announce('Left the search box. The shortcut keys work now: press ? to see them.');
+    }
   }
 });
 
@@ -1406,3 +1413,129 @@ openSharedLinkIfAny();
 // with Google" when using the app locally (uploads the binders to Drive,
 // then goes to My Binders to show the whole collection).
 setUpFooterSignOut(() => { location.href = 'index.html'; });
+
+
+/* =====================================================================
+   USING THE KEYBOARD
+   Shortcut keys that work anywhere on the page, EXCEPT while typing in a
+   box (the search box, or the New binder window's name box), so typing a
+   card name never sets one off. They're also left alone while the Set
+   list or the "Add to which binder?" menu is open (those have their own
+   arrow keys), and when Ctrl / Alt / ⌘ is held (those belong to the
+   browser).
+     /        jump to the search box, with its text selected
+     [ / ]    previous / next version in this set
+     { / }    previous / next set (Shift + [ / ])
+     F        flip a two-sided card
+     A        add to binder (like the "+" button)
+     S        share (like the share button)
+     B        back to the binder you came from
+     ?        the Keyboard shortcuts window
+   Each one is read out by screen readers through a hidden message area
+   (#finderAnnouncer in cardsearch.html).
+   ===================================================================== */
+
+const shortcutsDialog = document.getElementById('shortcutsDialog');
+const shortcutsTip    = document.getElementById('shortcutsTip');
+const finderAnnouncer = document.getElementById('finderAnnouncer');
+
+// Say something to screen readers. (Emptying the area first makes a
+// screen reader read the message even if it's the same as the last one.)
+function announce(text) {
+  finderAnnouncer.textContent = '';
+  setTimeout(() => { finderAnnouncer.textContent = text; }, 50);
+}
+
+// Open the Keyboard shortcuts window (from the ? key or the tip).
+function openShortcuts() {
+  shortcutsDialog.returnValue = '';
+  shortcutsDialog.showModal();
+}
+shortcutsTip.addEventListener('click', openShortcuts);
+closeOnBackdropClick(shortcutsDialog);   // binder-dialog.js: a click outside closes it
+
+// Show the version a step before (-1) or after (+1) the one showing, in
+// this set. It stops at the first and last (no wrapping around).
+function stepVersion(step) {
+  const prints = state.currentSet.prints;
+  const index = prints.indexOf(state.currentPrint);
+  const next = prints[index + step];
+  if (!next) {
+    announce(prints.length === 1 ? 'This set has only one version.'
+      : step > 0 ? 'This is the last version in this set.' : 'This is the first version in this set.');
+    return;
+  }
+  selectPrint(next);
+  announce(`Version ${index + step + 1} of ${prints.length}: ${versionLabel(next)}`);
+}
+
+// Show the set a step before (-1) or after (+1) the one showing.
+function stepSet(step) {
+  const sets = state.printsBySet;
+  const index = sets.indexOf(state.currentSet);
+  const next = sets[index + step];
+  if (!next) {
+    announce(sets.length === 1 ? 'This card was printed in only one set.'
+      : step > 0 ? 'This is the last set.' : 'This is the first set.');
+    return;
+  }
+  selectSet(next);
+  announce(`Set ${index + step + 1} of ${sets.length}: ${next.name}`);
+}
+
+// The shortcut keys.
+document.addEventListener('keydown', (event) => {
+  if (event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey) return;
+  // Typing in a box: leave every key alone.
+  const target = event.target;
+  if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
+  // A window is open, or the Set list / binder menu has the keyboard.
+  if (shortcutsDialog.open || newBinderDialog.open) return;
+  if (setList.contains(target) || binderMenu.contains(target)) return;
+
+  const key = event.key;
+  if (key === '/') {
+    event.preventDefault();               // "/" would otherwise start the browser's quick find
+    searchInput.focus();
+    searchInput.select();
+    return;
+  }
+  if (key === '?') {
+    event.preventDefault();
+    openShortcuts();
+    return;
+  }
+
+  // The rest need a card on show.
+  const cardKeys = ['[', ']', '{', '}', 'f', 'F', 'a', 'A', 's', 'S'];
+  if (cardKeys.includes(key) && !state.currentPrint) {
+    announce('Search for a card first.');
+    return;
+  }
+  if (key === '[' || key === ']') {
+    event.preventDefault();
+    stepVersion(key === ']' ? 1 : -1);
+  } else if (key === '{' || key === '}') {
+    event.preventDefault();
+    stepSet(key === '}' ? 1 : -1);
+  } else if (key === 'f' || key === 'F') {
+    event.preventDefault();
+    if (flipButton.hidden) { announce('This card has only one side.'); return; }
+    showFace(state.currentFace === 0 ? 1 : 0);
+    announce(`Showing the ${state.currentFace === 1 ? 'back' : 'front'}: ` +
+      state.currentPrint.card_faces[state.currentFace].name);
+  } else if (key === 'a' || key === 'A') {
+    event.preventDefault();
+    if (binderButton.hidden) { announce('Sign in, or use the site locally, to add cards to a binder.'); return; }
+    binderButton.click();                 // the same as clicking "+"
+  } else if (key === 's' || key === 'S') {
+    event.preventDefault();
+    shareButton.click();                  // the same as clicking share
+    announce('Sharing a link to this card.');
+  } else if (key === 'b' || key === 'B') {
+    const back = document.getElementById('backToBinderItem');
+    if (back.hidden) { announce('There\'s no binder to go back to.'); return; }
+    event.preventDefault();
+    location.href = document.getElementById('backToBinderLink').href;
+  }
+});

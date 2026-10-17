@@ -78,7 +78,18 @@
         aria-expanded="false"
         aria-controls="suggestions">
       <ul id="suggestions" class="popup-list suggestions" role="listbox" hidden></ul>
-      <p id="hint" class="hint" aria-live="polite">Loading card names…</p>
+      <!--
+        Under the search box: the status message on the left, and on the
+        right a faint tip about the keyboard shortcuts. The tip is a button:
+        clicking it (or pressing ?) opens the Keyboard shortcuts window.
+        cardsearch.css hides it on touch screens, which have no keyboard.
+      -->
+      <div class="hint-row">
+        <p id="hint" class="hint" aria-live="polite">Loading card names…</p>
+        <button id="shortcutsTip" class="shortcuts-tip" type="button">
+          <kbd>/</kbd> search · <kbd>?</kbd> shortcuts
+        </button>
+      </div>
     </div>
 
     <!--
@@ -231,6 +242,38 @@
       </div>
     </form>
   </dialog>
+
+  <!--
+    The "Keyboard shortcuts" window: opens with the ? key (or the tip under
+    the search box). It lists the page's shortcut keys (see USING THE
+    KEYBOARD in cardsearch.js). It uses the same window look as New binder.
+    method="dialog" means the Close button just closes the window.
+  -->
+  <dialog id="shortcutsDialog" class="new-binder-dialog" aria-labelledby="shortcutsTitle">
+    <form method="dialog">
+      <h2 id="shortcutsTitle" class="dialog-title">Keyboard shortcuts</h2>
+      <p class="dialog-text">These work anywhere on the page, except while you're typing in a box.</p>
+      <!-- A list of keys (<dt>) and what each one does (<dd>) -->
+      <dl class="shortcut-list">
+        <dt><kbd>/</kbd></dt>              <dd>Jump to the search box</dd>
+        <dt><kbd>Esc</kbd></dt>            <dd>Leave the search box, so these keys work</dd>
+        <dt><kbd>[</kbd> <kbd>]</kbd></dt> <dd>Previous / next version in this set</dd>
+        <dt><kbd>{</kbd> <kbd>}</kbd></dt> <dd>Previous / next set (Shift + [ / ])</dd>
+        <dt><kbd>F</kbd></dt>              <dd>Flip a two-sided card</dd>
+        <dt><kbd>A</kbd></dt>              <dd>Add to binder (when signed in or using the site locally)</dd>
+        <dt><kbd>S</kbd></dt>              <dd>Share: copy a link to this card</dd>
+        <dt><kbd>B</kbd></dt>              <dd>Back to the binder you came from</dd>
+        <dt><kbd>?</kbd></dt>              <dd>Show this list</dd>
+      </dl>
+      <div class="dialog-buttons">
+        <button value="close" class="dialog-button primary" type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Invisible, but screen readers read out whatever cardsearch.js puts in
+       it when a shortcut is used ("Version 2 of 5…") -->
+  <p id="finderAnnouncer" class="visually-hidden" aria-live="polite"></p>
 
   <!--
     Footer: links to every page in the project (the same list is on the

@@ -4,6 +4,7 @@
    - the footer: "My Binders" or "Home"
    - the left column: clicking a topic shows that page's instructions
      in the wide right column (and jumps to the section clicked)
+   - the ? key: the Keyboard shortcuts window
    storageSet (binder-storage.js) and isLoggedIn (google-drive.js) come
    from the shared files loaded before this one.
    ===================================================================== */
@@ -88,3 +89,21 @@ function showTopic() {
 // left (or a link inside the instructions) changes the address.
 window.addEventListener('hashchange', showTopic);
 showTopic();
+
+/* ---------------------------------------------------------------------
+   KEYBOARD SHORTCUTS WINDOW
+   The ? key, anywhere on the page, opens the Keyboard shortcuts window
+   (#shortcutsDialog in help.html). A click outside it closes it.
+   --------------------------------------------------------------------- */
+
+const shortcutsDialog = document.getElementById('shortcutsDialog');
+document.addEventListener('keydown', (event) => {
+  if (event.key !== '?' || event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.target.closest('input, textarea, select')) return;
+  if (shortcutsDialog.open) return;
+  event.preventDefault();
+  shortcutsDialog.showModal();
+});
+shortcutsDialog.addEventListener('click', (event) => {
+  if (event.target === shortcutsDialog) shortcutsDialog.close('close');
+});

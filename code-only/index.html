@@ -79,6 +79,9 @@
       <div id="binderShelf" class="binder-shelf"></div>
 
       <p id="shelfMessage" class="shelf-message" role="status"></p>
+
+      <div id="keyboardHint" class="keyboard-hint" aria-hidden="true" hidden></div>
+      <p id="shelfAnnouncer" class="visually-hidden" aria-live="polite"></p>
     </section>
 
     <dialog id="newBinderDialog" class="new-binder-dialog" aria-labelledby="newBinderTitle">
@@ -135,6 +138,28 @@
         <div class="dialog-buttons">
           <button value="save" class="dialog-button primary" type="submit">Save</button>
           <button value="cancel" class="dialog-button" type="submit" formnovalidate>Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="shortcutsDialog" class="new-binder-dialog" aria-labelledby="shortcutsTitle">
+      <form method="dialog">
+        <h2 id="shortcutsTitle" class="dialog-title">Keyboard shortcuts</h2>
+        <p class="dialog-text">Press <kbd>Tab</kbd> to get onto your shelf of binders, then:</p>
+        <dl class="shortcut-list">
+          <dt><kbd>←</kbd> <kbd>↑</kbd> <kbd>↓</kbd> <kbd>→</kbd></dt>
+          <dd>Move from binder to binder (the <strong>+</strong> New binder is last)</dd>
+          <dt><kbd>Home</kbd> <kbd>End</kbd></dt> <dd>The first binder / the <strong>+</strong></dd>
+          <dt><kbd>Enter</kbd></dt>  <dd>Open the binder (on the <strong>+</strong>, make a new one)</dd>
+          <dt><kbd>Space</kbd></dt>  <dd>Pick up the binder. Then the arrows choose its spot, <kbd>Space</kbd> drops it, <kbd>Esc</kbd> cancels</dd>
+          <dt><kbd>E</kbd></dt>      <dd>Binder properties (rename, pages, cover)</dd>
+          <dt><kbd>Delete</kbd></dt> <dd>Delete the binder (it asks first)</dd>
+          <dt><kbd>D</kbd></dt>      <dd>Download the binder as a .JSON file</dd>
+          <dt><kbd>N</kbd></dt>      <dd>Make a new binder</dd>
+          <dt><kbd>?</kbd></dt>      <dd>Show this list</dd>
+        </dl>
+        <div class="dialog-buttons">
+          <button value="close" class="dialog-button primary" type="submit">Close</button>
         </div>
       </form>
     </dialog>

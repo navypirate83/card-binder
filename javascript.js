@@ -107,6 +107,13 @@ function searchLinkFor(page, slot, card) {
 const PICTURE_PAGES_AHEAD = 2;
 const loadedPages = new Set();
 
+// The pocket ("3-5") the keyboard is on. Only this pocket's link can be
+// reached with the Tab key ("tabIndex = 0"); every other pocket has
+// tabIndex -1. So Tab goes into the binder ONCE, landing on this pocket,
+// and the arrow keys move around inside it (see USING THE KEYBOARD).
+// Without this, Tab would have to step through every pocket on the page.
+let activeKey = pocketKey(1, 1);
+
 // Put the right thing inside a pocket:
 //  - a saved card: its picture, which links to that card on cardsearch.html
 //  - nothing saved: a white "+" link to cardsearch.html to pick a card
@@ -114,10 +121,12 @@ function fillPocket(pocket, page, slot) {
   const card = binderCards[pocketKey(page, slot)];
   const link = document.createElement('a');
   link.href = searchLinkFor(page, slot, card);
+  link.tabIndex = pocketKey(page, slot) === activeKey ? 0 : -1;   // see activeKey above
 
   if (card) {
     link.className = 'pocket-card';
-    link.setAttribute('aria-label', `${card.name}, pocket ${slot}. Open in card search`);
+    const copies = cardCount(card) > 1 ? `, ${cardCount(card)} copies` : '';
+    link.setAttribute('aria-label', `${card.name}${copies}, page ${page}, pocket ${slot}. Open in card search`);
     const img = document.createElement('img');
     // On a page near the one you're looking at: show the picture now.
     // Otherwise keep its address in "data-src" until you get near that
@@ -132,7 +141,7 @@ function fillPocket(pocket, page, slot) {
     link.appendChild(img);
   } else {
     link.className = 'pocket-add';
-    link.setAttribute('aria-label', `Add a card to pocket ${slot}`);
+    link.setAttribute('aria-label', `Empty, page ${page}, pocket ${slot}. Add a card`);
     link.textContent = '+';
   }
 
@@ -144,7 +153,9 @@ function fillPocket(pocket, page, slot) {
 // it you own, with buttons to change that. (It sits beside the card's
 // link, not inside it, so tapping a button doesn't open the card search.)
 // The buttons are found by their class in the click handler further down
-// (see CHANGING HOW MANY COPIES).
+// (see CHANGING HOW MANY COPIES). They're for the mouse and fingers:
+// the Tab key skips them ("tabIndex = -1"), since keyboard users press
+// + and − on the card instead (see USING THE KEYBOARD).
 function copiesBar(card, key) {
   const count = cardCount(card);   // binder-storage.js
   const bar = document.createElement('div');
@@ -168,6 +179,8 @@ function copiesBar(card, key) {
   plus.textContent = '+';
   plus.setAttribute('aria-label', `One more ${card.name}`);
   plus.disabled = count >= MAX_COPIES;
+  minus.tabIndex = -1;
+  plus.tabIndex = -1;
 
   bar.append(minus, number, plus);
   return bar;
@@ -240,6 +253,13 @@ function showPages() {
   // Grey out a link when there's no page in that direction.
   prevButton.disabled = currentPage <= 1;
   nextButton.disabled = lastShown >= TOTAL_PAGES;
+
+  // If the keyboard's pocket is now on a hidden page (the page was turned
+  // with the mouse or a swipe), move it to the same spot on a page that's
+  // showing, so the Tab key can still get into the binder.
+  if (!numbers.includes(Number(activeKey.split('-')[0]))) {
+    setActivePocket(pocketKey(currentPage, Number(activeKey.split('-')[1])));
+  }
 }
 
 // Find a page's element by its number (or null if there's no such page).
@@ -384,6 +404,7 @@ async function animateTurn({ cover, front, back, under, hinge, from, to, landing
   const flipper = document.createElement('div');
   flipper.className = 'flipper';
   flipper.setAttribute('aria-hidden', 'true');   // screen readers skip it
+  flipper.inert = true;   // and the keyboard can't land on the copied pockets in it
   Object.assign(flipper.style, {
     left: `${spot.left}px`, top: `${spot.top}px`,
     width: `${spot.width}px`, height: `${spot.height}px`,
@@ -464,18 +485,22 @@ async function animateTurn({ cover, front, back, under, hinge, from, to, landing
 
 // Move forward (+1) or back (-1). On bigger screens that's two pages
 // at a time, since you see two pages together.
-function turnPage(direction) {
-  if (turning) return;                              // still turning: wait
+// "afterTurn" (optional) runs once the new pages are showing; the
+// keyboard controls use it to land on a pocket of the new page.
+// Returns false if there's no page that way (or a turn is under way).
+function turnPage(direction, afterTurn) {
+  if (turning) return false;                              // still turning: wait
   const count = pagesShown();
   const from = currentPage;
   const target = currentPage + count * direction;
-  if (target < 1 || target > TOTAL_PAGES) return;   // already at the end
+  if (target < 1 || target > TOTAL_PAGES) return false;   // already at the end
 
   // What to do once the page has turned: show the new page(s).
   const finish = () => {
     currentPage = target;
     showPages();
     turning = false;
+    if (afterTurn) afterTurn();
   };
 
   // No animation for "reduce motion", or if something's missing.
@@ -648,12 +673,41 @@ function keyOf(pocket) {
   return pocketKey(pocket.dataset.page, pocket.dataset.slot);
 }
 
-// Rebuild what's inside one pocket after its card has changed.
+// Rebuild what's inside one pocket after its card has changed. If the
+// keyboard was on that pocket, it stays on the rebuilt one (otherwise the
+// keyboard focus would be lost along with the old link).
 function refreshPocket(key) {
   const pocket = pocketElement(key);
   if (!pocket) return;
+  const hadFocus = pocket.contains(document.activeElement);
   pocket.replaceChildren();
   fillPocket(pocket, Number(pocket.dataset.page), Number(pocket.dataset.slot));
+  if (hadFocus) pocket.querySelector('a').focus();
+}
+
+// Move the card in one pocket to another. If the other pocket already has
+// a card, the two swap places. Saves the change (and to Google Drive a
+// moment later). Used by mouse and finger dragging, and by the keyboard.
+// Returns false (and changes nothing) if the browser blocked saving.
+function moveCard(fromKey, toKey) {
+  const moving = binderCards[fromKey];
+  const swapped = binderCards[toKey];
+  binderCards[toKey] = moving;
+  if (swapped) binderCards[fromKey] = swapped;
+  else delete binderCards[fromKey];
+
+  if (!saveBinder(binderCards)) {
+    // Saving failed: undo the move so the page matches what's saved.
+    binderCards[fromKey] = moving;
+    if (swapped) binderCards[toKey] = swapped;
+    else delete binderCards[toKey];
+    alert('Your browser blocked saving, so the card could not be moved.');
+    return false;
+  }
+  refreshPocket(fromKey);
+  refreshPocket(toKey);
+  scheduleDriveSave();
+  return true;
 }
 
 // The real (visible) pocket under a point on the screen, if any.
@@ -786,23 +840,7 @@ function endDrag(x, y) {
   if (!toKey || toKey === fromKey) return;   // dropped nowhere new
 
   // Move the card, and the card that was there (if any) to the old pocket.
-  const moving = binderCards[fromKey];
-  const swapped = binderCards[toKey];
-  binderCards[toKey] = moving;
-  if (swapped) binderCards[fromKey] = swapped;
-  else delete binderCards[fromKey];
-
-  if (!saveBinder(binderCards)) {
-    // Saving failed: undo the move so the page matches what's saved.
-    binderCards[fromKey] = moving;
-    if (swapped) binderCards[toKey] = swapped;
-    else delete binderCards[toKey];
-    alert('Your browser blocked saving, so the card could not be moved.');
-    return;
-  }
-  refreshPocket(fromKey);
-  refreshPocket(toKey);
-  scheduleDriveSave();
+  moveCard(fromKey, toKey);
 }
 
 // Clean up after a drag: remove the floating card, highlights and timers.
@@ -982,32 +1020,45 @@ function setCopies(key, count) {
   scheduleDriveSave();
 }
 
+// Open the "Remove card?" window for the card in a pocket ("Yes" takes it
+// out: see the window's close handler below). Used by "−" on the last
+// copy, and by the Delete key (see USING THE KEYBOARD).
+function askToRemove(key) {
+  const card = binderCards[key];
+  if (!card) return;
+  removingKey = key;
+  removeCardText.textContent = `Remove "${card.name}" from this binder?`;
+  removeCardDialog.returnValue = '';
+  removeCardDialog.showModal();
+}
+
+// One more (+1) or one fewer (-1) copy of a pocket's card. One fewer on
+// the last copy asks first instead. Returns the new number of copies (0
+// when the Remove window was opened). Used by the "−" / "+" buttons and
+// by the + and − keys.
+function changeCopies(key, step) {
+  const card = binderCards[key];
+  if (!card) return 0;
+  const count = cardCount(card);
+  if (step > 0) {
+    setCopies(key, Math.min(count + 1, MAX_COPIES));
+    return cardCount(binderCards[key]);
+  }
+  if (count > 1) {
+    setCopies(key, count - 1);
+    return count - 1;
+  }
+  askToRemove(key);   // the last copy: ask before taking the card out
+  return 0;
+}
+
 // One click handler for every "−" and "+" in the binder (cheaper than
 // giving each of the 2,400 possible buttons its own handler).
 binder.addEventListener('click', (event) => {
   const button = event.target.closest('.copies-minus, .copies-plus');
   if (!button) return;
   const key = button.closest('.copies-bar').dataset.key;
-  const card = binderCards[key];
-  if (!card) return;
-  const count = cardCount(card);
-
-  // After a change the pocket is rebuilt, which replaces the button that
-  // was clicked, so the keyboard focus is put back on the new button
-  // (handy when pressing "+" a few times with the keyboard).
-  if (button.classList.contains('copies-plus')) {
-    setCopies(key, count + 1);
-    pocketElement(key).querySelector('.copies-plus').focus();
-  } else if (count > 1) {
-    setCopies(key, count - 1);
-    pocketElement(key).querySelector('.copies-minus').focus();
-  } else {
-    // The last copy: ask before taking the card out.
-    removingKey = key;
-    removeCardText.textContent = `Remove "${card.name}" from this binder?`;
-    removeCardDialog.returnValue = '';
-    removeCardDialog.showModal();
-  }
+  changeCopies(key, button.classList.contains('copies-plus') ? 1 : -1);
 });
 
 // The Remove window closed: "Yes" removes the card, "No" (or Escape, or a
@@ -1377,4 +1428,295 @@ moveCardDialog.addEventListener('close', () => { movingKey = null; });
 // Clicking on the dimmed area outside the window closes it too.
 moveCardDialog.addEventListener('click', (event) => {
   if (event.target === moveCardDialog) moveCardDialog.close('cancel');
+});
+
+
+/* =====================================================================
+   USING THE KEYBOARD
+   Everything the mouse does to cards can also be done with keys. Press
+   Tab to get into the binder (it lands on one pocket), then:
+     Arrow keys      move from pocket to pocket. Going past the left or
+                     right edge turns the page.
+     Page Up / Down  turn the page (back / forward)
+     Enter           open the card in the MTG Card Finder (or, on an
+                     empty pocket, pick a card to add), like a click
+     Space           pick up the card. Then the arrow keys choose where
+                     it goes (a dashed outline shows the spot, and the
+                     page turns at the edges, like dragging), Space or
+                     Enter drops it there (swapping with any card already
+                     there), and Escape puts it back.
+     + / −           one more / one fewer copy (on the last copy, − asks
+                     before removing the card)
+     Delete          remove the card (it asks first)
+     M               move the card to another binder (the same window as
+                     dropping it on the blue circle)
+     ?               (anywhere on the page) the Keyboard shortcuts window
+   A small guide at the top of the page shows the keys while the keyboard
+   is in the binder, and each step is read out by screen readers through
+   a hidden message area (#binderAnnouncer in binder.html).
+   ===================================================================== */
+
+const keyboardHint = document.getElementById('keyboardHint');      // the visible key guide
+const binderAnnouncer = document.getElementById('binderAnnouncer'); // read out by screen readers
+
+// The card being carried with the keyboard: { fromKey: "1-3" }, or null.
+let carrying = null;
+
+// True after M or Delete opened a window from the keyboard, so the
+// keyboard goes back to the binder when that window closes.
+let keyboardOpenedWindow = false;
+
+// Make a pocket the keyboard's pocket (see activeKey near the top): it
+// becomes the one the Tab key reaches, and the previous one stops being
+// reachable. "focus" true also moves the keyboard there.
+function setActivePocket(key, focus = false) {
+  const old = pocketElement(activeKey);
+  if (old) old.querySelector('a').tabIndex = -1;
+  activeKey = key;
+  const pocket = pocketElement(key);
+  if (!pocket) return;
+  const link = pocket.querySelector('a');
+  link.tabIndex = 0;
+  if (focus) link.focus();
+}
+
+// Say something to screen readers. (Emptying the area first makes a
+// screen reader read the message even if it's the same as the last one.)
+function announce(text) {
+  binderAnnouncer.textContent = '';
+  setTimeout(() => { binderAnnouncer.textContent = text; }, 50);
+}
+
+// "page 3, pocket 5" for a pocket key like "3-5".
+function placeName(key) {
+  const [page, slot] = key.split('-');
+  return `page ${page}, pocket ${slot}`;
+}
+
+// The first and last page showing right now (the same page on a phone).
+function pagesInView() {
+  return { first: currentPage, last: Math.min(currentPage + pagesShown() - 1, TOTAL_PAGES) };
+}
+
+// The pocket at a column and row of what's showing. Columns count across
+// both pages (0-7 with two pages showing, 0-3 on a phone); rows go 0-3.
+// "last" means the right-most column.
+function pocketInView(column, row) {
+  const { first, last } = pagesInView();
+  const columns = (last - first + 1) * 4;
+  if (column === 'last' || column >= columns) column = columns - 1;
+  return pocketKey(first + Math.floor(column / 4), row * 4 + (column % 4) + 1);
+}
+
+// Where the keyboard's pocket is in what's showing: { column, row }.
+function placeInView(key) {
+  const [page, slot] = key.split('-').map(Number);
+  return { column: (page - currentPage) * 4 + (slot - 1) % 4, row: Math.floor((slot - 1) / 4) };
+}
+
+// Go to a pocket with the keyboard. While carrying a card, the dashed
+// "drop here" outline moves with it, and screen readers hear what's there.
+function goTo(key) {
+  setActivePocket(key, true);
+  if (!carrying) { updateKeyboardHint(); return; }
+  binder.querySelectorAll('.pocket.drop-target').forEach((p) => p.classList.remove('drop-target'));
+  if (key !== carrying.fromKey) pocketElement(key).classList.add('drop-target');
+  const there = binderCards[key];
+  announce(key === carrying.fromKey ? `Back at ${placeName(key)}, where it started.`
+    : there && key !== carrying.fromKey ? `${placeName(key)}: swap with ${there.name}.`
+    : `${placeName(key)}: empty.`);
+  updateKeyboardHint();
+}
+
+// An arrow key: move one pocket left / right (dx) or up / down (dy).
+// Past the left or right edge of what's showing, the page turns (if there
+// is one) and the keyboard lands on the pocket at the near edge of the new
+// page, in the same row.
+function arrowMove(dx, dy) {
+  const { column, row } = placeInView(activeKey);
+  const { first, last } = pagesInView();
+  const columns = (last - first + 1) * 4;
+  const newRow = Math.max(0, Math.min(3, row + dy));
+  const newColumn = column + dx;
+  if (newColumn < 0) {
+    if (turnPage(-1, () => goTo(pocketInView('last', newRow))) !== false) return;
+  } else if (newColumn >= columns) {
+    if (turnPage(1, () => goTo(pocketInView(0, newRow))) !== false) return;
+  }
+  // No page that way (or still on this page): stay inside what's showing.
+  goTo(pocketInView(Math.max(0, Math.min(columns - 1, newColumn)), newRow));
+}
+
+// Page Up / Page Down: turn the page, landing on the same spot of the new page.
+function pageMove(direction) {
+  const { column, row } = placeInView(activeKey);
+  if (turnPage(direction, () => goTo(pocketInView(column, row))) === false) {
+    announce(direction > 0 ? 'This is the last page.' : 'This is the first page.');
+  }
+}
+
+// Space on a card: pick it up. Its pocket fades, like a dragged card.
+function pickUp(key) {
+  carrying = { fromKey: key };
+  pocketElement(key).classList.add('drag-source');
+  announce(`Picked up ${binderCards[key].name} from ${placeName(key)}. ` +
+    'Use the arrow keys to choose a pocket, then Space to drop it, or Escape to cancel.');
+  updateKeyboardHint();
+}
+
+// Stop carrying: clear the faded pocket and the dashed outline.
+function stopCarrying() {
+  if (!carrying) return;
+  const source = pocketElement(carrying.fromKey);
+  if (source) source.classList.remove('drag-source');
+  binder.querySelectorAll('.pocket.drop-target').forEach((p) => p.classList.remove('drop-target'));
+  carrying = null;
+  updateKeyboardHint();
+}
+
+// Space or Enter while carrying: drop the card in the keyboard's pocket
+// (swapping with any card there), using the same moveCard as dragging.
+function dropCarried() {
+  const fromKey = carrying.fromKey;
+  const toKey = activeKey;
+  stopCarrying();
+  const name = binderCards[fromKey].name;
+  if (toKey === fromKey) { announce(`${name} stays at ${placeName(fromKey)}.`); return; }
+  const swapped = binderCards[toKey];
+  if (moveCard(fromKey, toKey)) {
+    announce(`Moved ${name} to ${placeName(toKey)}.` +
+      (swapped ? ` ${swapped.name} moved to ${placeName(fromKey)}.` : ''));
+  }
+}
+
+// Escape while carrying (or Tab, or the mouse taking over): put it back.
+function cancelCarrying() {
+  const fromKey = carrying.fromKey;
+  stopCarrying();
+  announce(`Cancelled. ${binderCards[fromKey].name} stays at ${placeName(fromKey)}.`);
+}
+
+// The key guide at the top of the page: which keys do what right now.
+// It shows while the keyboard is in the binder (or a card is being
+// carried), and hides otherwise. aria-hidden in binder.html, since screen
+// readers get the same help from the announcements.
+function updateKeyboardHint() {
+  const link = document.activeElement;
+  const inBinder = link && binder.contains(link) && link.matches('.pocket > a:focus-visible');
+  if (carrying) {
+    keyboardHint.textContent = `Carrying ${binderCards[carrying.fromKey].name}: ` +
+      '←↑↓→ choose a pocket · Space or Enter drop · Esc cancel';
+  } else if (inBinder && binderCards[activeKey]) {
+    keyboardHint.textContent = '←↑↓→ move · Space pick up · Enter open · M move to binder · ' +
+      'Del remove · + / − copies · PgUp / PgDn turn page · ? all keys';
+  } else if (inBinder) {
+    keyboardHint.textContent = '←↑↓→ move · Enter add a card · PgUp / PgDn turn page · ? all keys';
+  }
+  keyboardHint.hidden = !(carrying || inBinder);
+}
+
+// The keys, while the keyboard is on a pocket (not on the "− 3 +" buttons,
+// and not with Ctrl / Alt / ⌘ held, which belong to the browser).
+binder.addEventListener('keydown', (event) => {
+  const pocket = event.target.closest('.pocket');
+  if (!pocket || event.target.closest('.copies-bar') || drag) return;
+  if (event.ctrlKey || event.altKey || event.metaKey) return;
+  const key = keyOf(pocket);
+  const card = binderCards[key];
+
+  // Keys that need the page to be still (not mid-turn).
+  const moves = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  if (moves[event.key]) {
+    event.preventDefault();               // don't scroll the page
+    if (!turning) arrowMove(...moves[event.key]);
+    return;
+  }
+  if (event.key === 'PageUp' || event.key === 'PageDown') {
+    event.preventDefault();
+    if (!turning) pageMove(event.key === 'PageDown' ? 1 : -1);
+    return;
+  }
+
+  // While carrying a card: drop, cancel, or (Tab) give up and move on.
+  if (carrying) {
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();             // Enter mustn't open the card here
+      if (!turning) dropCarried();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelCarrying();
+    } else if (event.key === 'Tab') {
+      cancelCarrying();                   // the Tab still moves on as usual
+    }
+    return;
+  }
+
+  // Not carrying: the rest only do something on a card. (Enter is left
+  // alone, so it opens the pocket's link like a click.)
+  if (!card) return;
+  if (event.key === ' ') {
+    event.preventDefault();               // don't scroll the page
+    pickUp(key);
+  } else if (event.key === '+' || event.key === '=') {
+    event.preventDefault();
+    const now = changeCopies(key, 1);
+    announce(`${now} ${now === 1 ? 'copy' : 'copies'} of ${card.name}.`);
+  } else if (event.key === '-' || event.key === '_' || event.key === '−') {
+    event.preventDefault();
+    if (cardCount(card) === 1) keyboardOpenedWindow = true;   // asks first
+    const now = changeCopies(key, -1);
+    if (now > 0) announce(`${now} ${now === 1 ? 'copy' : 'copies'} of ${card.name}.`);
+  } else if (event.key === 'Delete' || event.key === 'Backspace') {
+    event.preventDefault();
+    keyboardOpenedWindow = true;
+    askToRemove(key);
+  } else if (event.key === 'm' || event.key === 'M') {
+    event.preventDefault();
+    keyboardOpenedWindow = true;
+    openMoveDialog(key);
+  }
+});
+
+// When the keyboard arrives on a pocket (by Tab, arrows or a click), that
+// pocket becomes the keyboard's pocket, and the key guide updates. When it
+// leaves the binder, the guide hides (checked a moment later, once the
+// browser has settled where the focus went).
+binder.addEventListener('focusin', (event) => {
+  const pocket = event.target.closest('.pocket');
+  if (pocket && !event.target.closest('.copies-bar') && keyOf(pocket) !== activeKey) setActivePocket(keyOf(pocket));
+  updateKeyboardHint();
+});
+binder.addEventListener('focusout', () => setTimeout(updateKeyboardHint, 0));
+
+// Starting a mouse or finger drag while carrying a card with the keyboard:
+// the keyboard's card goes back first, so only one card moves at a time.
+binder.addEventListener('pointerdown', () => { if (carrying) cancelCarrying(); }, true);
+
+// After a window opened from the keyboard (M or Delete) closes, put the
+// keyboard back on its pocket. (The card may have been removed or moved,
+// which rebuilds the pocket, so the browser's own "return focus" can land
+// nowhere.) "setTimeout" waits until the window has finished closing.
+for (const dialog of [moveCardDialog, removeCardDialog]) {
+  dialog.addEventListener('close', () => {
+    if (!keyboardOpenedWindow) return;
+    keyboardOpenedWindow = false;
+    setTimeout(() => setActivePocket(activeKey, true), 0);
+  });
+}
+
+// The ? key, anywhere on the page: open the Keyboard shortcuts window
+// (#shortcutsDialog in binder.html), which lists the keys above. Not while
+// typing in a box (like the "Move card to…" name box) or with another
+// window open. A click outside the window closes it, like the others.
+const shortcutsDialog = document.getElementById('shortcutsDialog');
+document.addEventListener('keydown', (event) => {
+  if (event.key !== '?' || event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.target.closest('input, textarea, select')) return;
+  if (document.querySelector('dialog[open]')) return;
+  event.preventDefault();
+  if (carrying) cancelCarrying();   // put a carried card back first
+  shortcutsDialog.showModal();
+});
+shortcutsDialog.addEventListener('click', (event) => {
+  if (event.target === shortcutsDialog) shortcutsDialog.close('close');
 });

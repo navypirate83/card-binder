@@ -990,3 +990,69 @@ body { padding-bottom: 43px; }
 .footer-signout:hover:not(:disabled) {
   -webkit-text-stroke: 0.04em currentColor;
 }
+
+/* =====================================================================
+   USING THE KEYBOARD (see USING THE KEYBOARD in cardsearch.js)
+   ===================================================================== */
+
+/* The line under the search box: the status message on the left and the
+   shortcuts tip on the right, on one line ("baseline" lines up their text) */
+.hint-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/*
+  The faint "/ search · ? shortcuts" tip. It's a button (clicking it opens
+  the Keyboard shortcuts window) styled as small muted text. "flex-shrink:
+  0" stops it squashing; the status message wraps instead.
+*/
+.shortcuts-tip {
+  flex-shrink: 0;
+  margin: 8px 2px 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.shortcuts-tip:hover { color: var(--accent); }
+
+/* Touch screens (phones, tablets) usually have no keyboard: no tip */
+@media (hover: none) {
+  .shortcuts-tip { display: none; }
+}
+
+/* A key, like "/" or "?": a small rounded box with a border, the way keys
+   are usually shown in instructions */
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 1px 5px;
+  font-family: inherit;
+  font-size: 0.85em;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+
+/* The list in the Keyboard shortcuts window: the keys in a narrow column
+   on the left, what they do on the right (a two-column grid) */
+.shortcut-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px 16px;
+  align-items: center;
+  margin: 0;
+}
+.shortcut-list dt { white-space: nowrap; }
+.shortcut-list dd { margin: 0; font-size: 0.95rem; }

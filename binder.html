@@ -183,6 +183,46 @@
       </form>
     </dialog>
 
+    <!--
+      Using the binder with the keyboard (see USING THE KEYBOARD in
+      javascript.js):
+      - the key guide: a small bar at the top of the page listing the keys,
+        shown only while the keyboard is in the binder. aria-hidden,
+        because screen readers get the same help from the message below.
+      - the message area: invisible, but screen readers read out whatever
+        javascript.js puts in it ("Picked up Lightning Bolt…").
+        aria-live="polite" means "read it when you get a moment".
+    -->
+    <div id="keyboardHint" class="keyboard-hint" aria-hidden="true" hidden></div>
+
+    <!--
+      The "Keyboard shortcuts" window: opens with the ? key, anywhere on the
+      page. It lists the keys for the binder (see USING THE KEYBOARD in
+      javascript.js). method="dialog" means Close just closes the window.
+    -->
+    <dialog id="shortcutsDialog" class="move-dialog" aria-labelledby="shortcutsTitle">
+      <form method="dialog">
+        <h2 id="shortcutsTitle" class="dialog-title">Keyboard shortcuts</h2>
+        <p class="dialog-text">Press <kbd>Tab</kbd> to get into the binder, then:</p>
+        <!-- A list of keys (<dt>) and what each one does (<dd>) -->
+        <dl class="shortcut-list">
+          <dt><kbd>←</kbd> <kbd>↑</kbd> <kbd>↓</kbd> <kbd>→</kbd></dt>
+          <dd>Move from pocket to pocket (past the left or right edge turns the page)</dd>
+          <dt><kbd>PgUp</kbd> <kbd>PgDn</kbd></dt> <dd>Turn the page back / forward</dd>
+          <dt><kbd>Enter</kbd></dt>   <dd>Open the card in the MTG Card Finder (or add a card to an empty pocket)</dd>
+          <dt><kbd>Space</kbd></dt>   <dd>Pick up the card. Then the arrows choose a pocket, <kbd>Space</kbd> drops it, <kbd>Esc</kbd> cancels</dd>
+          <dt><kbd>+</kbd> <kbd>−</kbd></dt> <dd>One more / one fewer copy</dd>
+          <dt><kbd>Delete</kbd></dt>  <dd>Remove the card (it asks first)</dd>
+          <dt><kbd>M</kbd></dt>       <dd>Move the card to another binder</dd>
+          <dt><kbd>?</kbd></dt>       <dd>Show this list</dd>
+        </dl>
+        <div class="dialog-buttons">
+          <button value="close" class="dialog-button primary" type="submit">Close</button>
+        </div>
+      </form>
+    </dialog>
+    <p id="binderAnnouncer" class="visually-hidden" aria-live="polite"></p>
+
     <!-- Previous / Next page links, with the current page number between them -->
     <nav class="page-nav" aria-label="Binder pages">
       <button id="prevPage" class="page-link" type="button">&larr; Previous page</button>

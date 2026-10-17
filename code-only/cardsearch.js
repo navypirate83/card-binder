@@ -414,8 +414,13 @@ searchInput.addEventListener('keydown', (event) => {
       loadCardByName(searchInput.value.trim(), false);
     }
   } else if (event.key === 'Escape') {
+    const listWasOpen = !suggestionsEl.hidden;
     cancelPendingSearch();
     hideSuggestions();
+    if (!listWasOpen) {
+      searchInput.blur();
+      announce('Left the search box. The shortcut keys work now: press ? to see them.');
+    }
   }
 });
 
@@ -1116,3 +1121,98 @@ loadCardNames();
 openSharedLinkIfAny();
 
 setUpFooterSignOut(() => { location.href = 'index.html'; });
+
+const shortcutsDialog = document.getElementById('shortcutsDialog');
+const shortcutsTip    = document.getElementById('shortcutsTip');
+const finderAnnouncer = document.getElementById('finderAnnouncer');
+
+function announce(text) {
+  finderAnnouncer.textContent = '';
+  setTimeout(() => { finderAnnouncer.textContent = text; }, 50);
+}
+
+function openShortcuts() {
+  shortcutsDialog.returnValue = '';
+  shortcutsDialog.showModal();
+}
+shortcutsTip.addEventListener('click', openShortcuts);
+closeOnBackdropClick(shortcutsDialog);
+
+function stepVersion(step) {
+  const prints = state.currentSet.prints;
+  const index = prints.indexOf(state.currentPrint);
+  const next = prints[index + step];
+  if (!next) {
+    announce(prints.length === 1 ? 'This set has only one version.'
+      : step > 0 ? 'This is the last version in this set.' : 'This is the first version in this set.');
+    return;
+  }
+  selectPrint(next);
+  announce(`Version ${index + step + 1} of ${prints.length}: ${versionLabel(next)}`);
+}
+
+function stepSet(step) {
+  const sets = state.printsBySet;
+  const index = sets.indexOf(state.currentSet);
+  const next = sets[index + step];
+  if (!next) {
+    announce(sets.length === 1 ? 'This card was printed in only one set.'
+      : step > 0 ? 'This is the last set.' : 'This is the first set.');
+    return;
+  }
+  selectSet(next);
+  announce(`Set ${index + step + 1} of ${sets.length}: ${next.name}`);
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey) return;
+  const target = event.target;
+  if (target.closest('input, textarea, select, [contenteditable="true"]')) return;
+  if (shortcutsDialog.open || newBinderDialog.open) return;
+  if (setList.contains(target) || binderMenu.contains(target)) return;
+
+  const key = event.key;
+  if (key === '/') {
+    event.preventDefault();
+    searchInput.focus();
+    searchInput.select();
+    return;
+  }
+  if (key === '?') {
+    event.preventDefault();
+    openShortcuts();
+    return;
+  }
+
+  const cardKeys = ['[', ']', '{', '}', 'f', 'F', 'a', 'A', 's', 'S'];
+  if (cardKeys.includes(key) && !state.currentPrint) {
+    announce('Search for a card first.');
+    return;
+  }
+  if (key === '[' || key === ']') {
+    event.preventDefault();
+    stepVersion(key === ']' ? 1 : -1);
+  } else if (key === '{' || key === '}') {
+    event.preventDefault();
+    stepSet(key === '}' ? 1 : -1);
+  } else if (key === 'f' || key === 'F') {
+    event.preventDefault();
+    if (flipButton.hidden) { announce('This card has only one side.'); return; }
+    showFace(state.currentFace === 0 ? 1 : 0);
+    announce(`Showing the ${state.currentFace === 1 ? 'back' : 'front'}: ` +
+      state.currentPrint.card_faces[state.currentFace].name);
+  } else if (key === 'a' || key === 'A') {
+    event.preventDefault();
+    if (binderButton.hidden) { announce('Sign in, or use the site locally, to add cards to a binder.'); return; }
+    binderButton.click();
+  } else if (key === 's' || key === 'S') {
+    event.preventDefault();
+    shareButton.click();
+    announce('Sharing a link to this card.');
+  } else if (key === 'b' || key === 'B') {
+    const back = document.getElementById('backToBinderItem');
+    if (back.hidden) { announce('There\'s no binder to go back to.'); return; }
+    event.preventDefault();
+    location.href = document.getElementById('backToBinderLink').href;
+  }
+});

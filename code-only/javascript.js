@@ -50,14 +50,18 @@ function searchLinkFor(page, slot, card) {
 const PICTURE_PAGES_AHEAD = 2;
 const loadedPages = new Set();
 
+let activeKey = pocketKey(1, 1);
+
 function fillPocket(pocket, page, slot) {
   const card = binderCards[pocketKey(page, slot)];
   const link = document.createElement('a');
   link.href = searchLinkFor(page, slot, card);
+  link.tabIndex = pocketKey(page, slot) === activeKey ? 0 : -1;
 
   if (card) {
     link.className = 'pocket-card';
-    link.setAttribute('aria-label', `${card.name}, pocket ${slot}. Open in card search`);
+    const copies = cardCount(card) > 1 ? `, ${cardCount(card)} copies` : '';
+    link.setAttribute('aria-label', `${card.name}${copies}, page ${page}, pocket ${slot}. Open in card search`);
     const img = document.createElement('img');
     if (loadedPages.has(page)) img.src = card.image;
     else img.dataset.src = card.image;
@@ -67,7 +71,7 @@ function fillPocket(pocket, page, slot) {
     link.appendChild(img);
   } else {
     link.className = 'pocket-add';
-    link.setAttribute('aria-label', `Add a card to pocket ${slot}`);
+    link.setAttribute('aria-label', `Empty, page ${page}, pocket ${slot}. Add a card`);
     link.textContent = '+';
   }
 
@@ -98,6 +102,8 @@ function copiesBar(card, key) {
   plus.textContent = '+';
   plus.setAttribute('aria-label', `One more ${card.name}`);
   plus.disabled = count >= MAX_COPIES;
+  minus.tabIndex = -1;
+  plus.tabIndex = -1;
 
   bar.append(minus, number, plus);
   return bar;
@@ -150,6 +156,10 @@ function showPages() {
 
   prevButton.disabled = currentPage <= 1;
   nextButton.disabled = lastShown >= TOTAL_PAGES;
+
+  if (!numbers.includes(Number(activeKey.split('-')[0]))) {
+    setActivePocket(pocketKey(currentPage, Number(activeKey.split('-')[1])));
+  }
 }
 
 function pageElement(number) {
@@ -243,6 +253,7 @@ async function animateTurn({ cover, front, back, under, hinge, from, to, landing
   const flipper = document.createElement('div');
   flipper.className = 'flipper';
   flipper.setAttribute('aria-hidden', 'true');
+  flipper.inert = true;
   Object.assign(flipper.style, {
     left: `${spot.left}px`, top: `${spot.top}px`,
     width: `${spot.width}px`, height: `${spot.height}px`,
@@ -301,17 +312,18 @@ async function animateTurn({ cover, front, back, under, hinge, from, to, landing
   done();
 }
 
-function turnPage(direction) {
-  if (turning) return;
+function turnPage(direction, afterTurn) {
+  if (turning) return false;
   const count = pagesShown();
   const from = currentPage;
   const target = currentPage + count * direction;
-  if (target < 1 || target > TOTAL_PAGES) return;
+  if (target < 1 || target > TOTAL_PAGES) return false;
 
   const finish = () => {
     currentPage = target;
     showPages();
     turning = false;
+    if (afterTurn) afterTurn();
   };
 
   if (REDUCE_MOTION.matches || !pageElement(from) || !binder.animate) {
@@ -410,8 +422,30 @@ function keyOf(pocket) {
 function refreshPocket(key) {
   const pocket = pocketElement(key);
   if (!pocket) return;
+  const hadFocus = pocket.contains(document.activeElement);
   pocket.replaceChildren();
   fillPocket(pocket, Number(pocket.dataset.page), Number(pocket.dataset.slot));
+  if (hadFocus) pocket.querySelector('a').focus();
+}
+
+function moveCard(fromKey, toKey) {
+  const moving = binderCards[fromKey];
+  const swapped = binderCards[toKey];
+  binderCards[toKey] = moving;
+  if (swapped) binderCards[fromKey] = swapped;
+  else delete binderCards[fromKey];
+
+  if (!saveBinder(binderCards)) {
+    binderCards[fromKey] = moving;
+    if (swapped) binderCards[toKey] = swapped;
+    else delete binderCards[toKey];
+    alert('Your browser blocked saving, so the card could not be moved.');
+    return false;
+  }
+  refreshPocket(fromKey);
+  refreshPocket(toKey);
+  scheduleDriveSave();
+  return true;
 }
 
 function pocketAt(x, y) {
@@ -519,22 +553,7 @@ function endDrag(x, y) {
 
   if (!toKey || toKey === fromKey) return;
 
-  const moving = binderCards[fromKey];
-  const swapped = binderCards[toKey];
-  binderCards[toKey] = moving;
-  if (swapped) binderCards[fromKey] = swapped;
-  else delete binderCards[fromKey];
-
-  if (!saveBinder(binderCards)) {
-    binderCards[fromKey] = moving;
-    if (swapped) binderCards[toKey] = swapped;
-    else delete binderCards[toKey];
-    alert('Your browser blocked saving, so the card could not be moved.');
-    return;
-  }
-  refreshPocket(fromKey);
-  refreshPocket(toKey);
-  scheduleDriveSave();
+  moveCard(fromKey, toKey);
 }
 
 function finishDrag() {
@@ -675,26 +694,36 @@ function setCopies(key, count) {
   scheduleDriveSave();
 }
 
+function askToRemove(key) {
+  const card = binderCards[key];
+  if (!card) return;
+  removingKey = key;
+  removeCardText.textContent = `Remove "${card.name}" from this binder?`;
+  removeCardDialog.returnValue = '';
+  removeCardDialog.showModal();
+}
+
+function changeCopies(key, step) {
+  const card = binderCards[key];
+  if (!card) return 0;
+  const count = cardCount(card);
+  if (step > 0) {
+    setCopies(key, Math.min(count + 1, MAX_COPIES));
+    return cardCount(binderCards[key]);
+  }
+  if (count > 1) {
+    setCopies(key, count - 1);
+    return count - 1;
+  }
+  askToRemove(key);
+  return 0;
+}
+
 binder.addEventListener('click', (event) => {
   const button = event.target.closest('.copies-minus, .copies-plus');
   if (!button) return;
   const key = button.closest('.copies-bar').dataset.key;
-  const card = binderCards[key];
-  if (!card) return;
-  const count = cardCount(card);
-
-  if (button.classList.contains('copies-plus')) {
-    setCopies(key, count + 1);
-    pocketElement(key).querySelector('.copies-plus').focus();
-  } else if (count > 1) {
-    setCopies(key, count - 1);
-    pocketElement(key).querySelector('.copies-minus').focus();
-  } else {
-    removingKey = key;
-    removeCardText.textContent = `Remove "${card.name}" from this binder?`;
-    removeCardDialog.returnValue = '';
-    removeCardDialog.showModal();
-  }
+  changeCopies(key, button.classList.contains('copies-plus') ? 1 : -1);
 });
 
 removeCardDialog.addEventListener('close', () => {
@@ -960,4 +989,218 @@ moveCardDialog.addEventListener('close', () => { movingKey = null; });
 
 moveCardDialog.addEventListener('click', (event) => {
   if (event.target === moveCardDialog) moveCardDialog.close('cancel');
+});
+
+const keyboardHint = document.getElementById('keyboardHint');
+const binderAnnouncer = document.getElementById('binderAnnouncer');
+
+let carrying = null;
+
+let keyboardOpenedWindow = false;
+
+function setActivePocket(key, focus = false) {
+  const old = pocketElement(activeKey);
+  if (old) old.querySelector('a').tabIndex = -1;
+  activeKey = key;
+  const pocket = pocketElement(key);
+  if (!pocket) return;
+  const link = pocket.querySelector('a');
+  link.tabIndex = 0;
+  if (focus) link.focus();
+}
+
+function announce(text) {
+  binderAnnouncer.textContent = '';
+  setTimeout(() => { binderAnnouncer.textContent = text; }, 50);
+}
+
+function placeName(key) {
+  const [page, slot] = key.split('-');
+  return `page ${page}, pocket ${slot}`;
+}
+
+function pagesInView() {
+  return { first: currentPage, last: Math.min(currentPage + pagesShown() - 1, TOTAL_PAGES) };
+}
+
+function pocketInView(column, row) {
+  const { first, last } = pagesInView();
+  const columns = (last - first + 1) * 4;
+  if (column === 'last' || column >= columns) column = columns - 1;
+  return pocketKey(first + Math.floor(column / 4), row * 4 + (column % 4) + 1);
+}
+
+function placeInView(key) {
+  const [page, slot] = key.split('-').map(Number);
+  return { column: (page - currentPage) * 4 + (slot - 1) % 4, row: Math.floor((slot - 1) / 4) };
+}
+
+function goTo(key) {
+  setActivePocket(key, true);
+  if (!carrying) { updateKeyboardHint(); return; }
+  binder.querySelectorAll('.pocket.drop-target').forEach((p) => p.classList.remove('drop-target'));
+  if (key !== carrying.fromKey) pocketElement(key).classList.add('drop-target');
+  const there = binderCards[key];
+  announce(key === carrying.fromKey ? `Back at ${placeName(key)}, where it started.`
+    : there && key !== carrying.fromKey ? `${placeName(key)}: swap with ${there.name}.`
+    : `${placeName(key)}: empty.`);
+  updateKeyboardHint();
+}
+
+function arrowMove(dx, dy) {
+  const { column, row } = placeInView(activeKey);
+  const { first, last } = pagesInView();
+  const columns = (last - first + 1) * 4;
+  const newRow = Math.max(0, Math.min(3, row + dy));
+  const newColumn = column + dx;
+  if (newColumn < 0) {
+    if (turnPage(-1, () => goTo(pocketInView('last', newRow))) !== false) return;
+  } else if (newColumn >= columns) {
+    if (turnPage(1, () => goTo(pocketInView(0, newRow))) !== false) return;
+  }
+  goTo(pocketInView(Math.max(0, Math.min(columns - 1, newColumn)), newRow));
+}
+
+function pageMove(direction) {
+  const { column, row } = placeInView(activeKey);
+  if (turnPage(direction, () => goTo(pocketInView(column, row))) === false) {
+    announce(direction > 0 ? 'This is the last page.' : 'This is the first page.');
+  }
+}
+
+function pickUp(key) {
+  carrying = { fromKey: key };
+  pocketElement(key).classList.add('drag-source');
+  announce(`Picked up ${binderCards[key].name} from ${placeName(key)}. ` +
+    'Use the arrow keys to choose a pocket, then Space to drop it, or Escape to cancel.');
+  updateKeyboardHint();
+}
+
+function stopCarrying() {
+  if (!carrying) return;
+  const source = pocketElement(carrying.fromKey);
+  if (source) source.classList.remove('drag-source');
+  binder.querySelectorAll('.pocket.drop-target').forEach((p) => p.classList.remove('drop-target'));
+  carrying = null;
+  updateKeyboardHint();
+}
+
+function dropCarried() {
+  const fromKey = carrying.fromKey;
+  const toKey = activeKey;
+  stopCarrying();
+  const name = binderCards[fromKey].name;
+  if (toKey === fromKey) { announce(`${name} stays at ${placeName(fromKey)}.`); return; }
+  const swapped = binderCards[toKey];
+  if (moveCard(fromKey, toKey)) {
+    announce(`Moved ${name} to ${placeName(toKey)}.` +
+      (swapped ? ` ${swapped.name} moved to ${placeName(fromKey)}.` : ''));
+  }
+}
+
+function cancelCarrying() {
+  const fromKey = carrying.fromKey;
+  stopCarrying();
+  announce(`Cancelled. ${binderCards[fromKey].name} stays at ${placeName(fromKey)}.`);
+}
+
+function updateKeyboardHint() {
+  const link = document.activeElement;
+  const inBinder = link && binder.contains(link) && link.matches('.pocket > a:focus-visible');
+  if (carrying) {
+    keyboardHint.textContent = `Carrying ${binderCards[carrying.fromKey].name}: ` +
+      '←↑↓→ choose a pocket · Space or Enter drop · Esc cancel';
+  } else if (inBinder && binderCards[activeKey]) {
+    keyboardHint.textContent = '←↑↓→ move · Space pick up · Enter open · M move to binder · ' +
+      'Del remove · + / − copies · PgUp / PgDn turn page · ? all keys';
+  } else if (inBinder) {
+    keyboardHint.textContent = '←↑↓→ move · Enter add a card · PgUp / PgDn turn page · ? all keys';
+  }
+  keyboardHint.hidden = !(carrying || inBinder);
+}
+
+binder.addEventListener('keydown', (event) => {
+  const pocket = event.target.closest('.pocket');
+  if (!pocket || event.target.closest('.copies-bar') || drag) return;
+  if (event.ctrlKey || event.altKey || event.metaKey) return;
+  const key = keyOf(pocket);
+  const card = binderCards[key];
+
+  const moves = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  if (moves[event.key]) {
+    event.preventDefault();
+    if (!turning) arrowMove(...moves[event.key]);
+    return;
+  }
+  if (event.key === 'PageUp' || event.key === 'PageDown') {
+    event.preventDefault();
+    if (!turning) pageMove(event.key === 'PageDown' ? 1 : -1);
+    return;
+  }
+
+  if (carrying) {
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault();
+      if (!turning) dropCarried();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelCarrying();
+    } else if (event.key === 'Tab') {
+      cancelCarrying();
+    }
+    return;
+  }
+
+  if (!card) return;
+  if (event.key === ' ') {
+    event.preventDefault();
+    pickUp(key);
+  } else if (event.key === '+' || event.key === '=') {
+    event.preventDefault();
+    const now = changeCopies(key, 1);
+    announce(`${now} ${now === 1 ? 'copy' : 'copies'} of ${card.name}.`);
+  } else if (event.key === '-' || event.key === '_' || event.key === '−') {
+    event.preventDefault();
+    if (cardCount(card) === 1) keyboardOpenedWindow = true;
+    const now = changeCopies(key, -1);
+    if (now > 0) announce(`${now} ${now === 1 ? 'copy' : 'copies'} of ${card.name}.`);
+  } else if (event.key === 'Delete' || event.key === 'Backspace') {
+    event.preventDefault();
+    keyboardOpenedWindow = true;
+    askToRemove(key);
+  } else if (event.key === 'm' || event.key === 'M') {
+    event.preventDefault();
+    keyboardOpenedWindow = true;
+    openMoveDialog(key);
+  }
+});
+
+binder.addEventListener('focusin', (event) => {
+  const pocket = event.target.closest('.pocket');
+  if (pocket && !event.target.closest('.copies-bar') && keyOf(pocket) !== activeKey) setActivePocket(keyOf(pocket));
+  updateKeyboardHint();
+});
+binder.addEventListener('focusout', () => setTimeout(updateKeyboardHint, 0));
+
+binder.addEventListener('pointerdown', () => { if (carrying) cancelCarrying(); }, true);
+
+for (const dialog of [moveCardDialog, removeCardDialog]) {
+  dialog.addEventListener('close', () => {
+    if (!keyboardOpenedWindow) return;
+    keyboardOpenedWindow = false;
+    setTimeout(() => setActivePocket(activeKey, true), 0);
+  });
+}
+
+const shortcutsDialog = document.getElementById('shortcutsDialog');
+document.addEventListener('keydown', (event) => {
+  if (event.key !== '?' || event.ctrlKey || event.altKey || event.metaKey) return;
+  if (event.target.closest('input, textarea, select')) return;
+  if (document.querySelector('dialog[open]')) return;
+  event.preventDefault();
+  if (carrying) cancelCarrying();
+  shortcutsDialog.showModal();
+});
+shortcutsDialog.addEventListener('click', (event) => {
+  if (event.target === shortcutsDialog) shortcutsDialog.close('close');
 });

@@ -49,6 +49,7 @@
 }
 
 .help-nav a:hover {
+  color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
@@ -144,3 +145,5 @@
 .help-article a:hover {
   -webkit-text-stroke: 0.04em currentColor;
 }
+
+.shortcut-note { margin-top: 16px; }

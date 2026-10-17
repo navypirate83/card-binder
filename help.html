@@ -37,6 +37,9 @@
        Binders page's styles (landing.css), so Help looks like the rest of
        the site. help.css adds the two-column layout and the text styles. -->
   <link rel="stylesheet" href="landing.css">
+  <!-- The look of the pop-up windows (here: the Keyboard shortcuts window),
+       shared with the other pages -->
+  <link rel="stylesheet" href="binder-dialog.css">
   <link rel="stylesheet" href="help.css">
 </head>
 <body>
@@ -85,6 +88,7 @@
             <li><a href="#my-binders-delete">Deleting a binder</a></li>
             <li><a href="#my-binders-backup">Backing up a binder</a></li>
             <li><a href="#my-binders-links">Getting around</a></li>
+            <li><a href="#my-binders-keyboard">Using the keyboard</a></li>
             <li><a href="#my-binders-account">Signing in and out</a></li>
           </ul>
         </li>
@@ -98,6 +102,7 @@
             <li><a href="#binder-removing">Removing cards</a></li>
             <li><a href="#binder-moving">Moving to another binder</a></li>
             <li><a href="#binder-saving">Saving and backups</a></li>
+            <li><a href="#binder-keyboard">Using the keyboard</a></li>
           </ul>
         </li>
         <li>
@@ -108,6 +113,7 @@
             <li><a href="#finder-add">Adding to a binder</a></li>
             <li><a href="#finder-share">Sharing a card</a></li>
             <li><a href="#finder-rules">Rules and legality</a></li>
+            <li><a href="#finder-keyboard">Using the keyboard</a></li>
           </ul>
         </li>
       </ul>
@@ -247,6 +253,38 @@
             The <strong>sun and moon switch</strong> at the top right swaps between light
             and dark colors on every page.
           </p>
+          <p>
+            Using a keyboard? Press <strong>?</strong> on any page to see a list of its
+            keyboard shortcuts.
+          </p>
+        </section>
+
+        <section id="my-binders-keyboard">
+          <h3>Using the keyboard</h3>
+          <p>
+            Everything you can do to binders with the mouse also works with the keyboard.
+            Press <strong>Tab</strong> to get onto the shelf. A guide at the top of the page
+            shows which keys work right now.
+          </p>
+          <ul>
+            <li><strong>Arrow keys</strong>: move from binder to binder. The <strong>+</strong>
+              (New binder) is the last stop.</li>
+            <li><strong>Home / End</strong>: jump to the first binder, or to the <strong>+</strong>.</li>
+            <li><strong>Enter</strong>: open the binder (on the <strong>+</strong>, make a new binder).</li>
+            <li><strong>E</strong>: Binder properties (rename, pages, cover).</li>
+            <li><strong>Delete</strong>: delete the binder (it asks first).</li>
+            <li><strong>D</strong>: download the binder as a .JSON file.</li>
+            <li><strong>N</strong>: make a new binder.</li>
+          </ul>
+          <p>To change the order of your binders:</p>
+          <ol>
+            <li>Press <strong>Space</strong> on a binder to pick it up. It fades.</li>
+            <li>Use the <strong>arrow keys</strong> to choose its new spot. A dashed outline shows it.</li>
+            <li>Press <strong>Space</strong> or <strong>Enter</strong> to put it there. The binders in
+              between shift along to make room.</li>
+          </ol>
+          <p>Press <strong>Escape</strong> at any time to put it back where it was.</p>
+          <p>Press <strong>?</strong> anywhere on My Binders to see these keys.</p>
         </section>
 
         <section id="my-binders-account">
@@ -371,6 +409,37 @@
             on My Binders (see <a href="#my-binders-backup">Backing up a binder</a>).
           </p>
         </section>
+
+        <section id="binder-keyboard">
+          <h3>Using the keyboard</h3>
+          <p>
+            Everything you can do to cards with the mouse also works with the keyboard.
+            Press <strong>Tab</strong> to get into the binder. A guide at the top of the page
+            shows which keys work right now.
+          </p>
+          <ul>
+            <li><strong>Arrow keys</strong>: move from pocket to pocket. Going past the left
+              or right edge turns the page.</li>
+            <li><strong>Page Up / Page Down</strong>: turn the page back or forward.</li>
+            <li><strong>Enter</strong>: open the card in the MTG Card Finder (on an empty
+              pocket, pick a card to add), the same as clicking.</li>
+            <li><strong>+ / −</strong>: one more or one fewer copy. On the last copy,
+              <strong>−</strong> asks before removing the card.</li>
+            <li><strong>Delete</strong>: remove the card (it asks first).</li>
+            <li><strong>M</strong>: move the card to another binder.</li>
+          </ul>
+          <p>To move a card to another pocket:</p>
+          <ol>
+            <li>Press <strong>Space</strong> on the card to pick it up. Its pocket fades.</li>
+            <li>Use the <strong>arrow keys</strong> to choose where it goes. A dashed outline
+              shows the spot, and the page turns at the left and right edges.</li>
+            <li>Press <strong>Space</strong> or <strong>Enter</strong> to drop it. If that pocket
+              has a card, the two swap places.</li>
+          </ol>
+          <p>Press <strong>Escape</strong> at any time to put the card back where it was.</p>
+          <p>If you use a screen reader, each step is read out as you go.</p>
+          <p>Press <strong>?</strong> anywhere on a binder page to see these keys.</p>
+        </section>
       </article>
 
       <!-- ===================== MTG CARD FINDER ===================== -->
@@ -444,9 +513,59 @@
               playing (Standard, Modern, Commander and more).</li>
           </ul>
         </section>
+
+        <section id="finder-keyboard">
+          <h3>Using the keyboard</h3>
+          <p>
+            The search box, its list of names, the Set list and the "Add to which binder?"
+            menu all work with the arrow keys, <strong>Enter</strong> and <strong>Escape</strong>.
+            There are also shortcut keys that work anywhere on the page, except while you're
+            typing in a box:
+          </p>
+          <ul>
+            <li><strong>/</strong>: jump to the search box, ready to type a new name.</li>
+            <li><strong>Escape</strong> (in the search box): leave it, so the shortcut keys work.</li>
+            <li><strong>[ / ]</strong>: previous / next version in this set.</li>
+            <li><strong>{ / }</strong> (Shift + [ / ]): previous / next set.</li>
+            <li><strong>F</strong>: flip a two-sided card.</li>
+            <li><strong>A</strong>: add to binder (when signed in or using the site locally).</li>
+            <li><strong>S</strong>: share a link to this card.</li>
+            <li><strong>B</strong>: back to the binder you came from.</li>
+            <li><strong>?</strong>: show a list of these keys.</li>
+          </ul>
+          <p>
+            On a computer, the line under the search box reminds you:
+            "<strong>/</strong> search · <strong>?</strong> shortcuts". Click it to see the list.
+          </p>
+        </section>
       </article>
     </div>
   </main>
+
+  <!--
+    The "Keyboard shortcuts" window: opens with the ? key, anywhere on the
+    page (help.js). It lists the keys for this page, and where to find the
+    other pages' keys. method="dialog" means Close just closes the window.
+  -->
+  <dialog id="shortcutsDialog" class="new-binder-dialog" aria-labelledby="shortcutsTitle">
+    <form method="dialog">
+      <h2 id="shortcutsTitle" class="dialog-title">Keyboard shortcuts</h2>
+      <!-- A list of keys (<dt>) and what each one does (<dd>) -->
+      <dl class="shortcut-list">
+        <dt><kbd>Tab</kbd></dt>         <dd>Move to the next link (the topics on the left, then the instructions)</dd>
+        <dt><kbd>Shift</kbd> + <kbd>Tab</kbd></dt> <dd>Move back to the link before</dd>
+        <dt><kbd>Enter</kbd></dt>       <dd>Open the topic or link</dd>
+        <dt><kbd>?</kbd></dt>           <dd>Show this list</dd>
+      </dl>
+      <p class="dialog-text shortcut-note">
+        Each page has its own keys: press <kbd>?</kbd> on My Binders, inside a binder
+        or on the MTG Card Finder to see them.
+      </p>
+      <div class="dialog-buttons">
+        <button value="close" class="dialog-button primary" type="submit">Close</button>
+      </div>
+    </form>
+  </dialog>
 
   <!--
     Footer: links to the site's pages. help.js shows "My Binders" when

@@ -565,9 +565,14 @@ main {
   transform: translateY(-6px);
   box-shadow: var(--binder-shadow-lift);
 }
+/* The new-binder "+" turns bold and orange, like the "+" in the binder
+   pockets. The cover is always black, so it uses the bright orange (dark
+   mode's accent) in both themes; the darker light-mode orange would be
+   hard to see. (Centered, so getting bolder doesn't move anything.) */
 .binder-tile:hover .cover-plus,
 .binder-tile:focus-visible .cover-plus {
   font-weight: 800;
+  color: #e38a5c;
 }
 
 /* People who turn on "reduce motion" get no lift */
@@ -849,3 +854,82 @@ body.dragging .drop-zone { display: grid; }
 .footer-signout:hover:not(:disabled) {
   -webkit-text-stroke: 0.04em currentColor;
 }
+
+/* =====================================================================
+   USING THE KEYBOARD (see USING THE KEYBOARD in landing.js)
+   ===================================================================== */
+
+/*
+  The key guide: a small dark pill pinned to the bottom middle of the
+  window, just above the footer (the top is taken by the "Signed in as"
+  line), listing the keys that work right now (the same look as on the
+  binder pages). It only shows while the keyboard is on the
+  shelf (landing.js takes away "hidden"). "pointer-events: none" lets
+  clicks pass through it, and "nowrap" + "ellipsis" keep it to one line.
+*/
+.keyboard-hint {
+  position: fixed;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: calc(100vw - 32px);
+  padding: 5px 14px;
+  font-size: 0.8rem;
+  color: #f4efe7;
+  background: rgba(20, 21, 26, 0.92);
+  border: 1px solid #e38a5c;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.keyboard-hint[hidden] { display: none; }
+
+/* The binder the keyboard is on: an accent-colored outline around its
+   cover (rather than around the whole spot with its caption), matching
+   the lift it gets */
+.binder-tile:focus-visible { outline: none; }
+.binder-tile:focus-visible .closed-binder {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+/* ...except on the spot a binder is being moved to with the keyboard:
+   there it keeps the dashed "goes here" outline, like dragging */
+.binder-tile.drop-target:focus-visible .closed-binder {
+  outline: 2px dashed var(--accent);
+  outline-offset: 5px;
+}
+
+/* A key, like "M" or "Space": a small rounded box with a border, the way
+   keys are usually shown in instructions (used in the Keyboard shortcuts
+   window) */
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 1px 5px;
+  font-family: inherit;
+  font-size: 0.85em;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+
+/* The list in the Keyboard shortcuts window: the keys in a narrow column
+   on the left, what they do on the right (a two-column grid) */
+.shortcut-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px 16px;
+  align-items: center;
+  margin: 0;
+}
+.shortcut-list dt { white-space: nowrap; }
+.shortcut-list dd { margin: 0; font-size: 0.95rem; }
