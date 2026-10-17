@@ -194,8 +194,7 @@ main {
   background: none;
   border: none;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration: none;
 }
 .skip-login-button:hover { filter: brightness(1.15); }
 
@@ -439,7 +438,6 @@ body { padding-bottom: 43px; }
   font-weight: 600;
   text-decoration: none;
 }
-.footer-links a:hover { text-decoration: underline; }
 
 .footer-links a[aria-current="page"] {
   color: var(--text);
@@ -461,7 +459,6 @@ body { padding-bottom: 43px; }
   white-space: nowrap;
   cursor: pointer;
 }
-.footer-signout:hover { text-decoration: underline; }
 .footer-signout:disabled {
   opacity: 0.6;
   cursor: progress;
@@ -561,3 +558,9 @@ body.dragging .drop-zone { display: grid; }
   border-color: var(--danger);
 }
 .dialog-button.danger:hover { background: var(--danger-bright); }
+
+.skip-login-button:hover,
+.footer-links a:not([aria-current="page"]):hover,
+.footer-signout:hover:not(:disabled) {
+  -webkit-text-stroke: 0.04em currentColor;
+}

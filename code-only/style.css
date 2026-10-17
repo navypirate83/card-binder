@@ -85,7 +85,6 @@ main {
   white-space: nowrap;
   cursor: pointer;
 }
-.tool-link:hover { text-decoration: underline; }
 .tool-link svg { width: 16px; height: 16px; flex-shrink: 0; }
 
 .sync-status {
@@ -475,7 +474,6 @@ body.dragging * {
   color: var(--accent);
   cursor: pointer;
 }
-.page-link:hover { text-decoration: underline; }
 
 .page-link:disabled {
   color: var(--muted);
@@ -540,7 +538,6 @@ body { padding-bottom: 43px; }
   font-weight: 600;
   text-decoration: none;
 }
-.footer-links a:hover { text-decoration: underline; }
 
 .footer-links a[aria-current="page"] {
   color: var(--text);
@@ -562,7 +559,6 @@ body { padding-bottom: 43px; }
   white-space: nowrap;
   cursor: pointer;
 }
-.footer-signout:hover { text-decoration: underline; }
 .footer-signout:disabled {
   opacity: 0.6;
   cursor: progress;
@@ -767,3 +763,10 @@ body { padding-bottom: 43px; }
   border-color: #c0392b;
 }
 .dialog-button.danger:hover:not(:disabled) { filter: brightness(1.1); background: #c0392b; }
+
+.tool-link:hover,
+.page-link:hover:not(:disabled),
+.footer-links a:not([aria-current="page"]):hover,
+.footer-signout:hover:not(:disabled) {
+  -webkit-text-stroke: 0.04em currentColor;
+}

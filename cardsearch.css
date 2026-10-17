@@ -619,7 +619,7 @@ main {
   line-height: 1.5;
 }
 .card-info strong { color: var(--text); font-size: 1.05rem; }
-.card-info a { color: var(--accent); }
+.card-info a { color: var(--accent); text-decoration: none; }   /* no underline: it turns bold on hover */
 
 /* =====================================================================
    SET AND VERSION DROP-DOWNS
@@ -899,13 +899,13 @@ body { padding-bottom: 43px; }
   list-style: none;
 }
 
-/* Each link uses the accent color, underlined when the mouse is over it */
+/* Each link uses the accent color, with no underline (it turns bold when the
+   mouse is over it: see the end of this file) */
 .footer-links a {
   color: var(--accent);
   font-weight: 600;
   text-decoration: none;
 }
-.footer-links a:hover { text-decoration: underline; }
 
 /* The link to the page you're already on looks like plain bold text */
 .footer-links a[aria-current="page"] {
@@ -938,7 +938,6 @@ body { padding-bottom: 43px; }
   white-space: nowrap;
   cursor: pointer;
 }
-.footer-signout:hover { text-decoration: underline; }
 .footer-signout:disabled {
   opacity: 0.6;
   cursor: progress;
@@ -974,4 +973,20 @@ body { padding-bottom: 43px; }
 @media (max-width: 360px) {
   .site-footer { font-size: 0.78rem; column-gap: 8px; }
   .footer-links { gap: 8px 10px; }
+}
+
+/* =====================================================================
+   LINKS TURN BOLD WHEN THE MOUSE IS OVER THEM
+   (the same idea is at the end of style.css, landing.css and help.css)
+   Real bold letters are wider, which would push the words beside them
+   along. Instead, each letter gets a thin outline in its own color
+   ("-webkit-text-stroke"), which makes it look bold while taking up
+   exactly the same space, so nothing moves. 0.04em scales with the
+   text's size. Covers: "View on Scryfall", the footer links (not the
+   page you're on, which isn't a link) and Sign out.
+   ===================================================================== */
+.card-info a:hover,
+.footer-links a:not([aria-current="page"]):hover,
+.footer-signout:hover:not(:disabled) {
+  -webkit-text-stroke: 0.04em currentColor;
 }

@@ -166,8 +166,9 @@
 .help-article ol { margin: 8px 0; padding-left: 1.4em; }
 .help-article li + li { margin-top: 6px; }
 
-/* Links inside the instructions, in the accent color */
-.help-article a { color: var(--accent); }
+/* Links inside the instructions, in the accent color with no underline
+   (they turn bold when the mouse is over them: see the end of this file) */
+.help-article a { color: var(--accent); text-decoration: none; }
 
 /* =====================================================================
    PHONES AND NARROW WINDOWS (700px wide or less)
@@ -205,4 +206,18 @@
   /* Less padding inside the instructions box, to save space */
   .help-content { padding: 4px 16px 20px; }
   .help-article h2 { font-size: 1.35rem; }
+}
+
+/* =====================================================================
+   LINKS TURN BOLD WHEN THE MOUSE IS OVER THEM
+   (the footer's links get this from landing.css)
+   Real bold letters are wider, which would push the words beside them
+   along (or wrap a line differently). Instead, each letter gets a thin
+   outline in its own color ("-webkit-text-stroke"), which makes it look
+   bold while taking up exactly the same space, so nothing moves.
+   Covers: the topic list on the left, and links inside the instructions.
+   ===================================================================== */
+.help-nav a:hover,
+.help-article a:hover {
+  -webkit-text-stroke: 0.04em currentColor;
 }

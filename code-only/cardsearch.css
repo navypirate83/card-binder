@@ -453,7 +453,7 @@ main {
   line-height: 1.5;
 }
 .card-info strong { color: var(--text); font-size: 1.05rem; }
-.card-info a { color: var(--accent); }
+.card-info a { color: var(--accent); text-decoration: none; }
 
 .pickers {
   display: grid;
@@ -653,7 +653,6 @@ body { padding-bottom: 43px; }
   font-weight: 600;
   text-decoration: none;
 }
-.footer-links a:hover { text-decoration: underline; }
 
 .footer-links a[aria-current="page"] {
   color: var(--text);
@@ -675,7 +674,6 @@ body { padding-bottom: 43px; }
   white-space: nowrap;
   cursor: pointer;
 }
-.footer-signout:hover { text-decoration: underline; }
 .footer-signout:disabled {
   opacity: 0.6;
   cursor: progress;
@@ -698,4 +696,10 @@ body { padding-bottom: 43px; }
 @media (max-width: 360px) {
   .site-footer { font-size: 0.78rem; column-gap: 8px; }
   .footer-links { gap: 8px 10px; }
+}
+
+.card-info a:hover,
+.footer-links a:not([aria-current="page"]):hover,
+.footer-signout:hover:not(:disabled) {
+  -webkit-text-stroke: 0.04em currentColor;
 }

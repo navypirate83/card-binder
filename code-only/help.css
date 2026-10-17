@@ -110,7 +110,7 @@
 .help-article ol { margin: 8px 0; padding-left: 1.4em; }
 .help-article li + li { margin-top: 6px; }
 
-.help-article a { color: var(--accent); }
+.help-article a { color: var(--accent); text-decoration: none; }
 
 @media (max-width: 700px) {
   .help-layout {
@@ -138,4 +138,9 @@
 
   .help-content { padding: 4px 16px 20px; }
   .help-article h2 { font-size: 1.35rem; }
+}
+
+.help-nav a:hover,
+.help-article a:hover {
+  -webkit-text-stroke: 0.04em currentColor;
 }
