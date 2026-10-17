@@ -438,6 +438,63 @@ main {
   -webkit-user-drag: none;   /* no browser "drag the picture" (Safari) */
 }
 
+/*
+  The "− 3 +" bar along the bottom of a card: how many copies you own,
+  with buttons to change it. It's a dark see-through pill over the
+  bottom edge of the card (where the artist's name is, so it hides
+  nothing important). "z-index: 1" puts it above the plastic shine.
+  Its size follows the pocket's width ("cqw" = 1% of the pocket's width),
+  so it shrinks on phones and grows on big screens.
+*/
+.copies-bar {
+  position: absolute;
+  z-index: 1;
+  left: 8%;
+  right: 8%;
+  bottom: 3%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: clamp(0.65rem, 11cqw, 1.05rem);
+  line-height: 1;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  -webkit-touch-callout: none;
+}
+
+/* The "−" and "+" buttons: round, see-through until the mouse is over them */
+.copies-bar button {
+  display: grid;
+  place-items: center;
+  width: 1.9em;
+  height: 1.9em;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;   /* no double-tap zoom when tapping quickly */
+}
+.copies-bar button:hover:not(:disabled),
+.copies-bar button:focus-visible {
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+}
+
+/* "+" is greyed out at the most copies allowed (99) */
+.copies-bar button:disabled { opacity: 0.35; cursor: default; }
+
+/* The number of copies between the buttons */
+.copies-count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;   /* every digit the same width */
+}
+
 /* =====================================================================
    DRAGGING CARDS BETWEEN POCKETS (see DRAGGING CARDS in javascript.js)
    ===================================================================== */
@@ -448,8 +505,10 @@ main {
   -webkit-user-select: none;
 }
 
-/* The pocket a card is being dragged OUT of: the card left behind fades */
-.pocket.drag-source .pocket-card { opacity: 0.25; }
+/* The pocket a card is being dragged OUT of: the card left behind (and
+   its "− 3 +" bar) fades */
+.pocket.drag-source .pocket-card,
+.pocket.drag-source .copies-bar { opacity: 0.25; }
 
 /*
   The pocket the card would drop INTO: an accent-colored dashed outline
@@ -1014,6 +1073,31 @@ body { padding-bottom: 43px; }
 }
 .move-message.error { color: #d0453a; }
 
+/* "How many to move" (only when the pocket has several copies): a small
+   number box with "of 4" beside it */
+.move-how-many { margin-bottom: 14px; }
+.move-amount-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.move-amount {
+  width: 5.5em;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.move-amount:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.move-amount-note { font-size: 0.9rem; color: var(--muted); }
+
 /* The Cancel button along the bottom, on the right */
 .dialog-buttons {
   display: flex;
@@ -1045,3 +1129,11 @@ body { padding-bottom: 43px; }
   border-color: var(--accent);
 }
 .dialog-button.primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--accent); }
+
+/* "Yes, remove" in the Remove card window: red, since it takes a card out */
+.dialog-button.danger {
+  color: #ffffff;
+  background: #c0392b;
+  border-color: #c0392b;
+}
+.dialog-button.danger:hover:not(:disabled) { filter: brightness(1.1); background: #c0392b; }

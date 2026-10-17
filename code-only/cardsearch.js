@@ -965,7 +965,8 @@ function openBinderMenu() {
     row.dataset.id = binder.id;
 
     const dot = document.createElement('span');
-    dot.className = `binder-menu-dot cover-${cleanCover(binder.cover)}`;
+    dot.className = 'binder-menu-dot';
+    applyCoverColor(dot, binder.cover);
     const name = document.createElement('span');
     name.className = 'binder-menu-name';
     name.textContent = binder.name;
@@ -983,13 +984,14 @@ function openBinderMenu() {
   newRow.className = 'binder-menu-item binder-menu-new';
   const plusDot = document.createElement('span');
   plusDot.className = 'binder-menu-dot binder-menu-plus';
-  plusDot.textContent = '+';
-  plusDot.setAttribute('aria-hidden', 'true');
   const newName = document.createElement('span');
   newName.className = 'binder-menu-name';
   newName.textContent = 'New binder';
   newRow.append(plusDot, newName);
-  newRow.addEventListener('click', addCardToNewBinder);
+  newRow.addEventListener('click', () => {
+    closeBinderMenu(false);
+    openNewBinderDialog(addCardToNewBinder);
+  });
   binderMenuList.appendChild(newRow);
 
   binderMenu.hidden = false;
@@ -1033,7 +1035,7 @@ async function addCardToBinder(binderId, pocket) {
     return;
   }
 
-  if (!OPENED_FROM_BINDER) {
+  if (!OPENED_FROM_BINDER && !isLocalMode()) {
     const rows = binderMenuList.querySelectorAll('.binder-menu-item');
     rows.forEach((row) => { row.disabled = true; });
     setHint('Getting your binder from Google Drive…');
@@ -1082,16 +1084,15 @@ function shownCardEntry() {
   };
 }
 
-async function addCardToNewBinder() {
+async function addCardToNewBinder(name, color, cover) {
   if (!state.currentPrint) return;
   const binders = loadBinderList();
-  const name = nextBinderName();
-  binderMenuList.querySelectorAll('.binder-menu-item').forEach((row) => { row.disabled = true; });
+  binderButton.disabled = true;
   setHint('Making the new binder…');
   try {
     const cards = { [pocketKey(1, 1)]: shownCardEntry() };
-    const file = await createBinderFile(name, cards, null, binders.length);
-    binders.push({ id: file.id, name, color: null, cover: DEFAULT_COVER, pages: DEFAULT_PAGES });
+    const file = await createBinderFile(name, cards, color, binders.length, cover);
+    binders.push({ id: file.id, name, color, cover, pages: DEFAULT_PAGES });
     saveBinderList(binders);
     saveBinder(cards, file.id, { dirty: false });
     location.href = `binder.html?binder=${encodeURIComponent(file.id)}&page=1`;
@@ -1099,7 +1100,7 @@ async function addCardToNewBinder() {
     setHint(err.signedOut
       ? 'Sign in again on My Binders (at the bottom of the page), then try again.'
       : `Couldn't make the new binder in Google Drive. ${err.message}`, true);
-    closeBinderMenu(true);
+    binderButton.disabled = false;
   }
 }
 

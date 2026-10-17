@@ -237,6 +237,24 @@ main {
 /* Google's "G" logo inside the button */
 .google-logo { width: 20px; height: 20px; }
 
+/* "Skip login, local use only": a small link-style button under the
+   Google button, for using the app without signing in */
+.skip-login {
+  margin: 18px 0 0;
+}
+.skip-login-button {
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.skip-login-button:hover { filter: brightness(1.15); }
+
 /* A message under the button (e.g. "Sign-in was cancelled."). It keeps its
    height when empty so the button doesn't jump when a message appears. */
 .sign-in-message {
@@ -360,15 +378,14 @@ main {
 }
 
 /* Label colors: light text on the dark covers (the starting values here),
-   dark text on the light covers (white, gold and light gray) */
+   dark text on the light covers (white, gold, light gray and pale custom
+   colors: applyCoverColor in binder-dialog.js gives those "light-cover") */
 .closed-binder {
   --cover-text: #e9e5dc;
   --cover-label-line: rgba(255, 255, 255, 0.16);
   --cover-label-fill: rgba(255, 255, 255, 0.05);
 }
-.closed-binder.cover-white,
-.closed-binder.cover-gold,
-.closed-binder.cover-gray {
+.closed-binder.light-cover {
   --cover-text: #24211c;
   --cover-label-line: rgba(0, 0, 0, 0.28);
   --cover-label-fill: rgba(255, 255, 255, 0.35);

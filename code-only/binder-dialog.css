@@ -34,6 +34,18 @@
   --cover-dark: #7d5f14;
   --cover-edge: #9c7a20;
 }
+.cover-purple {
+  --cover-light: #7d4bb3;
+  --cover-base: #5b2d8e;
+  --cover-dark: #361a57;
+  --cover-edge: #6a3aa0;
+}
+.cover-orange {
+  --cover-light: #e8893a;
+  --cover-base: #c8641c;
+  --cover-dark: #8a3f0c;
+  --cover-edge: #a9541a;
+}
 .cover-gray {
   --cover-light: #d6d8dc;
   --cover-base: #b9bcc2;
@@ -137,7 +149,7 @@
 
 .cover-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
 }
 
@@ -149,6 +161,23 @@
   border-radius: 50%;
   background: linear-gradient(135deg, var(--cover-light) 0%, var(--cover-base) 55%, var(--cover-dark) 100%);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.cover-swatch.custom-unset {
+  background: conic-gradient(#e53935, #fdd835, #43a047, #1e88e5, #8e24aa, #e53935);
+  border-color: rgba(0, 0, 0, 0.25);
+}
+
+.custom-cover-input {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .choice-name {

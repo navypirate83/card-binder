@@ -1206,7 +1206,8 @@ function openBinderMenu() {
     row.dataset.id = binder.id;
 
     const dot = document.createElement('span');
-    dot.className = `binder-menu-dot cover-${cleanCover(binder.cover)}`;
+    dot.className = 'binder-menu-dot';
+    applyCoverColor(dot, binder.cover);   // binder-dialog.js
     const name = document.createElement('span');
     name.className = 'binder-menu-name';
     name.textContent = binder.name;
@@ -1298,7 +1299,9 @@ async function addCardToBinder(binderId, pocket) {
   // from Google Drive first: otherwise the card could land in a pocket
   // that's already taken, and saving could wipe out cards. (Coming from
   // the binder page, it's already up to date.)
-  if (!OPENED_FROM_BINDER) {
+  // (Used locally, without signing in, this device has the only copy:
+  // nothing to fetch.)
+  if (!OPENED_FROM_BINDER && !isLocalMode()) {
     const rows = binderMenuList.querySelectorAll('.binder-menu-item');
     rows.forEach((row) => { row.disabled = true; });
     setHint('Getting your binder from Google Drive…');
@@ -1396,6 +1399,8 @@ loadCardNames();
 // Finally, open the shared card if the link included one.
 openSharedLinkIfAny();
 
-// The "Sign out" link at the bottom right (google-drive.js saves any
-// unsaved changes first). Afterwards, go to the sign-in screen.
+// The link at the bottom right: "Sign out" (google-drive.js saves any
+// unsaved changes first; afterwards, go to the sign-in screen), or "Sign in
+// with Google" when using the app locally (uploads the binders to Drive,
+// then goes to My Binders to show the whole collection).
 setUpFooterSignOut(() => { location.href = 'index.html'; });

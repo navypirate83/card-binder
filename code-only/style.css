@@ -262,12 +262,59 @@ main {
   -webkit-user-drag: none;
 }
 
+.copies-bar {
+  position: absolute;
+  z-index: 1;
+  left: 8%;
+  right: 8%;
+  bottom: 3%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: clamp(0.65rem, 11cqw, 1.05rem);
+  line-height: 1;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  -webkit-touch-callout: none;
+}
+
+.copies-bar button {
+  display: grid;
+  place-items: center;
+  width: 1.9em;
+  height: 1.9em;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.copies-bar button:hover:not(:disabled),
+.copies-bar button:focus-visible {
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+}
+
+.copies-bar button:disabled { opacity: 0.35; cursor: default; }
+
+.copies-count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .binder {
   user-select: none;
   -webkit-user-select: none;
 }
 
-.pocket.drag-source .pocket-card { opacity: 0.25; }
+.pocket.drag-source .pocket-card,
+.pocket.drag-source .copies-bar { opacity: 0.25; }
 
 .pocket.drop-target {
   outline: 2px dashed var(--accent);
@@ -659,6 +706,29 @@ body { padding-bottom: 43px; }
 }
 .move-message.error { color: #d0453a; }
 
+.move-how-many { margin-bottom: 14px; }
+.move-amount-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.move-amount {
+  width: 5.5em;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.move-amount:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.move-amount-note { font-size: 0.9rem; color: var(--muted); }
+
 .dialog-buttons {
   display: flex;
   justify-content: flex-end;
@@ -687,3 +757,10 @@ body { padding-bottom: 43px; }
   border-color: var(--accent);
 }
 .dialog-button.primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--accent); }
+
+.dialog-button.danger {
+  color: #ffffff;
+  background: #c0392b;
+  border-color: #c0392b;
+}
+.dialog-button.danger:hover:not(:disabled) { filter: brightness(1.1); background: #c0392b; }

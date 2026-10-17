@@ -15,6 +15,11 @@
      in their Drive. The file's Drive id is also the binder's id.
    - The access token is kept in "sessionStorage", which is wiped when the
      browser tab closes, so the pass doesn't stay on the computer.
+   - LOCAL USE ONLY (no sign-in, see isLocalMode in binder-storage.js): the
+     functions below that would change Drive (make, rename, delete, save a
+     binder) just work on this device's copy instead, so the pages don't
+     need to know the difference. Signing in later uploads the binders
+     (uploadLocalBinders).
    ========================================================================= */
 
 // The app's Google Client ID. It tells Google which app is asking to sign
@@ -81,6 +86,10 @@ function signedOutError() {
 // Google's sign-in helper, made once the library has loaded.
 let tokenClient = null;
 
+// The getting-ready step (see initGoogleSignIn), kept so it only runs once
+// even when a page asks for it more than once.
+let googleSignInReady = null;
+
 // The sign-in in progress, so Google's answer can finish it.
 let pendingSignIn = null;
 
@@ -101,7 +110,12 @@ function whenGoogleLibraryReady() {
 // Get Google's sign-in helper ready. Pages call this as soon as they open,
 // so that clicking "Sign in" can open Google's window straight away
 // (browsers only allow pop-up windows right after a click).
-async function initGoogleSignIn() {
+// Calling it again just waits for the first call to finish.
+function initGoogleSignIn() {
+  if (!googleSignInReady) googleSignInReady = setUpGoogleSignIn();
+  return googleSignInReady;
+}
+async function setUpGoogleSignIn() {
   if (!googleIsConfigured()) return;
   await whenGoogleLibraryReady();
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -184,30 +198,64 @@ async function signOutAndForget() {
   return true;
 }
 
-// Is someone using the app as a signed-in user? True when signed in to
-// Google in this tab, OR when their binders are still kept in this browser
-// (the Google pass may have run out, but they haven't signed out: Sign out
-// is what clears the binders). Pages use this to show or hide everything
-// to do with binders: the "My Binders" link, "Add to binder", "Sign out".
+// Is someone using the app's binders? True when signed in to Google in
+// this tab, OR when their binders are still kept in this browser (the
+// Google pass may have run out, but they haven't signed out: Sign out is
+// what clears the binders), OR when using it locally without signing in.
+// Pages use this to show or hide everything to do with binders: the
+// "My Binders" link, "Add to binder", and the footer's sign in/out link.
 function isLoggedIn() {
-  return isSignedIn() || loadBinderList().length > 0;
+  return isSignedIn() || isLocalMode() || loadBinderList().length > 0;
 }
 
-// Set up the "Sign out" link in the page's footer. It only shows when
-// someone is logged in (see isLoggedIn).
-// "afterSignOut" is what the page does once signed out.
-function setUpFooterSignOut(afterSignOut) {
+// Set up the link at the bottom right of the page's footer:
+//  - signed in: "Sign out". "afterSignOut" is what the page does once
+//    signed out.
+//  - local use only: "Sign in with Google". Signing in uploads the binders
+//    made on this device to Google Drive (uploadLocalBinders), then runs
+//    "afterSignIn" (by default: go to My Binders to show the collection).
+// It only shows when someone is using the binders (see isLoggedIn).
+function setUpFooterSignOut(afterSignOut, afterSignIn = () => { location.href = 'index.html'; }) {
   const link = document.getElementById('footerSignOut');
   if (!link) return;
-  link.hidden = !isLoggedIn();
+  showFooterAccountLink();
+  // Get Google's sign-in ready now, so the click can open its window.
+  if (isLocalMode()) initGoogleSignIn().catch(() => { /* the click explains */ });
+
   link.addEventListener('click', async () => {
     link.disabled = true;
+    if (isLocalMode()) {
+      link.textContent = 'Signing in…';
+      try {
+        await signInWithGoogle();
+        link.textContent = 'Uploading your binders…';
+        await uploadLocalBinders();
+        link.disabled = false;
+        showFooterAccountLink();
+        afterSignIn();
+      } catch (err) {
+        alert(err.message);
+        link.disabled = false;
+        showFooterAccountLink();
+      }
+      return;
+    }
     link.textContent = 'Signing out…';
     const signedOut = await signOutAndForget();
     link.disabled = false;
-    link.textContent = 'Sign out';
+    showFooterAccountLink();
     if (signedOut) afterSignOut();
   });
+}
+
+// Show the footer's bottom-right link with the right words for now:
+// "Sign in with Google" when using the app locally, otherwise "Sign out".
+// Hidden when nobody is using the binders.
+function showFooterAccountLink() {
+  const link = document.getElementById('footerSignOut');
+  if (!link) return;
+  link.hidden = !isLoggedIn();
+  link.textContent = isLocalMode() ? 'Sign in with Google' : 'Sign out';
 }
 
 /* ---------------------------------------------------------------------
@@ -316,22 +364,28 @@ async function writeBinderFile(fileId, data) {
 // Make a new binder file in the folder, holding these cards (often none).
 // Returns { id, name }.
 // "color" is the cover's symbol code from MANA_COLORS (e.g. "U", "PW" or
-// "WU") or null for none, "order" is its spot on the shelf (0 = first), and
-// "cover" is the cover's color from COVER_COLORS (black unless chosen).
+// "WU") or null for none, "order" is its spot on the shelf (0 = first),
+// "cover" is the cover's color from COVER_COLORS, or a custom "#3a7bd5"
+// (black unless chosen), and
+// "pages" how many pages it has (DEFAULT_PAGES unless given).
 // They're stored as labels on the file's details, so the shelf can show
-// them without opening every binder. New binders have DEFAULT_PAGES pages.
+// them without opening every binder.
+// Local use only: nothing goes to Drive; the binder just gets a new
+// "local-..." id (the page then saves it on this device as usual).
 // A new file needs two things sent together: its details (name, folder)
 // and its contents. Drive takes both in one "multipart" message: two parts
 // separated by a "boundary" line that appears nowhere else.
-async function createBinderFile(name, cards = {}, color = null, order = null, cover = DEFAULT_COVER) {
+async function createBinderFile(name, cards = {}, color = null, order = null, cover = DEFAULT_COVER, pages = DEFAULT_PAGES) {
+  if (isLocalMode()) return { id: newLocalBinderId(), name: `${name}.json` };
   const folderId = await getBinderFolderId();
   const boundary = `binder-${Date.now()}`;
   // The file's contents: the same layout binderFileData (binder-storage.js) writes.
-  const data = { app: FILE_APP_NAME, version: 1, name, color, cover, pages: DEFAULT_PAGES, cards };
+  const data = { app: FILE_APP_NAME, version: 1, name, color, cover, pages, cards };
   const details = { name: `${name}.json`, mimeType: 'application/json', parents: [folderId] };
   const labels = {};
   if (color) labels.color = color;
-  if (cover !== DEFAULT_COVER) labels.cover = cover;   // black is the default: no label needed
+  if (cover !== DEFAULT_COVER) labels.cover = cover;           // black is the default: no label needed
+  if (pages !== DEFAULT_PAGES) labels.pages = String(pages);   // (and so is DEFAULT_PAGES)
   if (order !== null) labels.order = String(order);
   if (Object.keys(labels).length) details.appProperties = labels;
   const body =
@@ -358,7 +412,10 @@ async function createBinderFile(name, cards = {}, color = null, order = null, co
 //   { pages: 20 }                 how many pages the binder has
 //   { order: 3 }                  its spot on the shelf (0 = first)
 // All but the name are small labels ("appProperties") on the file.
+// (Local use only: nothing to do; the page has already saved the change
+// on this device.)
 async function updateBinderDetails(fileId, { name, color, cover, pages, order } = {}) {
+  if (isLocalMode()) return;
   const details = {};
   const labels = {};
   if (name !== undefined) details.name = `${name}.json`;
@@ -376,7 +433,9 @@ async function updateBinderDetails(fileId, { name, color, cover, pages, order } 
 
 // "Delete" a binder: move its file to the Google Drive trash (not gone for
 // good: it can still be restored from the trash in Google Drive for 30 days).
+// (Local use only: nothing to do; the page forgets the binder itself.)
 async function trashBinderFile(fileId) {
+  if (isLocalMode()) return;
   await driveRequest(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -394,7 +453,9 @@ function nameFromFileName(fileName) {
 //  - otherwise, FETCH the binder from Drive (it may have been changed on
 //    another computer) and keep it as this browser's working copy
 // Returns the binder's cards as they now stand.
+// (Local use only: this device's copy is the only one, so just return it.)
 async function syncBinder(id) {
+  if (isLocalMode()) return loadBinder(id);
   const stamp = binderDirtyStamp(id);
   if (stamp) {
     await writeBinderFile(id, binderFileData(id));
@@ -405,4 +466,27 @@ async function syncBinder(id) {
   const { cards } = cleanCards(data && data.cards);
   saveBinder(cards, id, { dirty: false });
   return cards;
+}
+
+// Signing in after using the app locally: upload every binder made on this
+// device to the person's Google Drive, after the binders already there
+// (so they come at the end of the shelf, in the same order), then switch
+// "local use only" off. The page then shows the full collection from Drive.
+// Each binder is forgotten here as soon as it's safely uploaded, so if
+// something goes wrong part way, trying again only uploads the rest (and
+// the app stays in local use, with the rest still on this device).
+async function uploadLocalBinders() {
+  const localBinders = loadBinderList();
+  setLocalMode(false);   // so createBinderFile really saves to Drive
+  try {
+    const alreadyInDrive = (await listBinderFiles()).length;
+    for (const [index, binder] of localBinders.entries()) {
+      await createBinderFile(binder.name, loadBinder(binder.id), binder.color,
+        alreadyInDrive + index, cleanCover(binder.cover), binderPages(binder.id));
+      forgetBinder(binder.id);   // binder-storage.js
+    }
+  } catch (err) {
+    setLocalMode(true);
+    throw new Error(`Couldn't upload all your binders to Google Drive. ${err.message}`);
+  }
 }

@@ -10,6 +10,12 @@
    computer), so pages open instantly and keep working even when the Google
    connection has expired. A "needs saving" marker remembers which binders
    have changes that haven't reached Google Drive yet.
+
+   LOCAL USE ONLY: someone can skip signing in ("Skip login, local use
+   only" on the landing page). Then this browser's copy is the ONLY copy:
+   the binders live just on this device, and nothing goes to Google Drive
+   until they sign in (which uploads them; see uploadLocalBinders in
+   google-drive.js).
    ========================================================================= */
 
 // How many pockets on each page (4 x 4).
@@ -34,10 +40,13 @@ const MAX_PAGES = 150;
 //  - binderList        the list of the user's binders: [{ id, name, color, cover, pages }, ...]
 //                      ("color" is the cover's symbol, "cover" the cover's color)
 //  - lastBinderId      the binder opened most recently
+//  - localOnly         "yes" while using the app without signing in
+//                      (binders saved on this device only)
 const CARDS_KEY_PREFIX = 'binderCards:';
 const DIRTY_KEY_PREFIX = 'binderDirty:';
 const BINDER_LIST_KEY = 'binderList';
 const LAST_BINDER_KEY = 'lastBinderId';
+const LOCAL_MODE_KEY = 'localOnly';
 
 // Before there were several binders, the one binder was saved under this
 // name. The landing page moves those cards into the user's first binder.
@@ -86,21 +95,35 @@ const MANA_COLORS = [
 
 // The colors a binder's cover can be (on the My Binders shelf). Each has a
 // code (saved with the binder) and a name. The actual shades are in
-// landing.css (the "cover-<code>" classes). Black is what every binder
-// starts as.
+// binder-dialog.css (the "cover-<code>" classes). "light: true" marks the
+// pale covers, whose name label needs dark text. Black is what every
+// binder starts as.
+// Besides these, a cover can be ANY color picked with the device's own
+// color chooser ("Custom"). That's saved as a color code like "#3a7bd5"
+// (# then two digits each for red, green and blue, in "hexadecimal":
+// 0-9 then a-f, so "00" is none and "ff" is full).
 const COVER_COLORS = [
-  { code: 'white', name: 'White' },
-  { code: 'blue',  name: 'Blue' },
-  { code: 'black', name: 'Black' },
-  { code: 'red',   name: 'Red' },
-  { code: 'green', name: 'Green' },
-  { code: 'gold',  name: 'Gold' },
-  { code: 'gray',  name: 'Light gray' }
+  { code: 'white',  name: 'White', light: true },
+  { code: 'blue',   name: 'Blue' },
+  { code: 'black',  name: 'Black' },
+  { code: 'red',    name: 'Red' },
+  { code: 'green',  name: 'Green' },
+  { code: 'gold',   name: 'Gold', light: true },
+  { code: 'gray',   name: 'Light gray', light: true },
+  { code: 'purple', name: 'Purple' },
+  { code: 'orange', name: 'Orange' }
 ];
 const DEFAULT_COVER = 'black';
 
-// A cover color's code if it's one of the list above, otherwise black.
+// Is this a custom cover color code, like "#3a7bd5"?
+function isCustomCover(code) {
+  return typeof code === 'string' && /^#[0-9a-f]{6}$/i.test(code);
+}
+
+// A cover color's code if it's one of the list above (or a custom color,
+// made lowercase), otherwise black.
 function cleanCover(code) {
+  if (isCustomCover(code)) return code.toLowerCase();
   return COVER_COLORS.some((c) => c.code === code) ? code : DEFAULT_COVER;
 }
 
@@ -281,6 +304,30 @@ function clearAllBinders() {
   storageRemove(LAST_BINDER_KEY);
 }
 
+/* ---------------------------------------------------------------------
+   LOCAL USE ONLY (no Google sign-in)
+   --------------------------------------------------------------------- */
+
+// Is the app being used without signing in, with the binders saved on
+// this device only?
+function isLocalMode() {
+  return storageGet(LOCAL_MODE_KEY) === 'yes';
+}
+
+// Turn "local use only" on (after "Skip login") or off (after signing in).
+// It's kept in localStorage, so it's remembered next time on this device.
+function setLocalMode(on) {
+  if (on) storageSet(LOCAL_MODE_KEY, 'yes');
+  else storageRemove(LOCAL_MODE_KEY);
+}
+
+// A new id for a binder kept on this device only (Google Drive gives the
+// signed-in binders their ids). It starts with "local-" and adds the time
+// and a few random letters, so no two are the same, e.g. "local-m1x2y3-k9q".
+function newLocalBinderId() {
+  return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 // Find the first empty pocket, going page by page, pocket by pocket, in a
 // binder with this many pages. Returns { page, slot }, or null if every
 // pocket already holds a card.
@@ -303,7 +350,37 @@ function isValidCard(card) {
     typeof card.number === 'string' &&
     typeof card.image === 'string' && card.image.startsWith('https://') &&
     (card.face === 0 || card.face === 1) &&
-    (card.lang === undefined || typeof card.lang === 'string');
+    (card.lang === undefined || typeof card.lang === 'string') &&
+    (card.count === undefined || (Number.isInteger(card.count) && card.count >= 1));
+}
+
+// How many copies of one card a pocket can say you own (the "− 3 +"
+// counter on the binder page). 99 keeps the number to two digits, so it
+// fits under even a small card on a phone.
+const MAX_COPIES = 99;
+
+// How many copies of a card you own. Cards saved before the counter
+// existed have no "count", which means 1.
+function cardCount(card) {
+  return card && Number.isInteger(card.count) && card.count >= 1
+    ? Math.min(card.count, MAX_COPIES)
+    : 1;
+}
+
+// A copy of a card with a new number of copies. A count of 1 is left out
+// of the card (it's the normal amount), which keeps saved files tidy.
+function withCount(card, count) {
+  const copy = { ...card };
+  if (count > 1) copy.count = Math.min(count, MAX_COPIES);
+  else delete copy.count;
+  return copy;
+}
+
+// Are two cards the same printing: same set, collector number, face and
+// language? Used when moving copies into a binder that already has that card.
+function samePrinting(a, b) {
+  return a.set === b.set && a.number === b.number && a.face === b.face &&
+    (a.lang || 'en') === (b.lang || 'en');
 }
 
 // Keep only the valid cards in pockets that can exist (like "3-5", on any

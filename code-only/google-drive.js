@@ -41,6 +41,8 @@ function signedOutError() {
 
 let tokenClient = null;
 
+let googleSignInReady = null;
+
 let pendingSignIn = null;
 
 function whenGoogleLibraryReady() {
@@ -55,7 +57,11 @@ function whenGoogleLibraryReady() {
   });
 }
 
-async function initGoogleSignIn() {
+function initGoogleSignIn() {
+  if (!googleSignInReady) googleSignInReady = setUpGoogleSignIn();
+  return googleSignInReady;
+}
+async function setUpGoogleSignIn() {
   if (!googleIsConfigured()) return;
   await whenGoogleLibraryReady();
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -126,21 +132,46 @@ async function signOutAndForget() {
 }
 
 function isLoggedIn() {
-  return isSignedIn() || loadBinderList().length > 0;
+  return isSignedIn() || isLocalMode() || loadBinderList().length > 0;
 }
 
-function setUpFooterSignOut(afterSignOut) {
+function setUpFooterSignOut(afterSignOut, afterSignIn = () => { location.href = 'index.html'; }) {
   const link = document.getElementById('footerSignOut');
   if (!link) return;
-  link.hidden = !isLoggedIn();
+  showFooterAccountLink();
+  if (isLocalMode()) initGoogleSignIn().catch(() => {  });
+
   link.addEventListener('click', async () => {
     link.disabled = true;
+    if (isLocalMode()) {
+      link.textContent = 'Signing in…';
+      try {
+        await signInWithGoogle();
+        link.textContent = 'Uploading your binders…';
+        await uploadLocalBinders();
+        link.disabled = false;
+        showFooterAccountLink();
+        afterSignIn();
+      } catch (err) {
+        alert(err.message);
+        link.disabled = false;
+        showFooterAccountLink();
+      }
+      return;
+    }
     link.textContent = 'Signing out…';
     const signedOut = await signOutAndForget();
     link.disabled = false;
-    link.textContent = 'Sign out';
+    showFooterAccountLink();
     if (signedOut) afterSignOut();
   });
+}
+
+function showFooterAccountLink() {
+  const link = document.getElementById('footerSignOut');
+  if (!link) return;
+  link.hidden = !isLoggedIn();
+  link.textContent = isLocalMode() ? 'Sign in with Google' : 'Sign out';
 }
 
 async function driveRequest(url, options = {}) {
@@ -225,14 +256,16 @@ async function writeBinderFile(fileId, data) {
   });
 }
 
-async function createBinderFile(name, cards = {}, color = null, order = null, cover = DEFAULT_COVER) {
+async function createBinderFile(name, cards = {}, color = null, order = null, cover = DEFAULT_COVER, pages = DEFAULT_PAGES) {
+  if (isLocalMode()) return { id: newLocalBinderId(), name: `${name}.json` };
   const folderId = await getBinderFolderId();
   const boundary = `binder-${Date.now()}`;
-  const data = { app: FILE_APP_NAME, version: 1, name, color, cover, pages: DEFAULT_PAGES, cards };
+  const data = { app: FILE_APP_NAME, version: 1, name, color, cover, pages, cards };
   const details = { name: `${name}.json`, mimeType: 'application/json', parents: [folderId] };
   const labels = {};
   if (color) labels.color = color;
   if (cover !== DEFAULT_COVER) labels.cover = cover;
+  if (pages !== DEFAULT_PAGES) labels.pages = String(pages);
   if (order !== null) labels.order = String(order);
   if (Object.keys(labels).length) details.appProperties = labels;
   const body =
@@ -251,6 +284,7 @@ async function createBinderFile(name, cards = {}, color = null, order = null, co
 }
 
 async function updateBinderDetails(fileId, { name, color, cover, pages, order } = {}) {
+  if (isLocalMode()) return;
   const details = {};
   const labels = {};
   if (name !== undefined) details.name = `${name}.json`;
@@ -267,6 +301,7 @@ async function updateBinderDetails(fileId, { name, color, cover, pages, order } 
 }
 
 async function trashBinderFile(fileId) {
+  if (isLocalMode()) return;
   await driveRequest(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -279,6 +314,7 @@ function nameFromFileName(fileName) {
 }
 
 async function syncBinder(id) {
+  if (isLocalMode()) return loadBinder(id);
   const stamp = binderDirtyStamp(id);
   if (stamp) {
     await writeBinderFile(id, binderFileData(id));
@@ -289,4 +325,20 @@ async function syncBinder(id) {
   const { cards } = cleanCards(data && data.cards);
   saveBinder(cards, id, { dirty: false });
   return cards;
+}
+
+async function uploadLocalBinders() {
+  const localBinders = loadBinderList();
+  setLocalMode(false);
+  try {
+    const alreadyInDrive = (await listBinderFiles()).length;
+    for (const [index, binder] of localBinders.entries()) {
+      await createBinderFile(binder.name, loadBinder(binder.id), binder.color,
+        alreadyInDrive + index, cleanCover(binder.cover), binderPages(binder.id));
+      forgetBinder(binder.id);
+    }
+  } catch (err) {
+    setLocalMode(true);
+    throw new Error(`Couldn't upload all your binders to Google Drive. ${err.message}`);
+  }
 }

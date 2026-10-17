@@ -88,6 +88,13 @@
       <form method="dialog">
         <h2 id="moveCardTitle" class="dialog-title">Move card to…</h2>
         <p id="moveCardText" class="dialog-text"></p>
+        <div id="moveHowMany" class="move-how-many" hidden>
+          <label class="field-label" for="moveAmount">How many to move</label>
+          <div class="move-amount-row">
+            <input id="moveAmount" class="move-amount" type="number" min="1" step="1" inputmode="numeric">
+            <span id="moveAmountNote" class="move-amount-note"></span>
+          </div>
+        </div>
         <div id="moveTargets" class="move-targets"></div>
 
         <div class="move-new">
@@ -106,6 +113,17 @@
 
         <div class="dialog-buttons">
           <button value="cancel" class="dialog-button" type="submit">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="removeCardDialog" class="move-dialog" aria-labelledby="removeCardTitle">
+      <form method="dialog">
+        <h2 id="removeCardTitle" class="dialog-title">Remove card?</h2>
+        <p id="removeCardText" class="dialog-text"></p>
+        <div class="dialog-buttons">
+          <button value="no" class="dialog-button" type="submit">No</button>
+          <button value="yes" class="dialog-button danger" type="submit">Yes, remove</button>
         </div>
       </form>
     </dialog>

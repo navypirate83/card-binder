@@ -91,6 +91,15 @@
         Sign in with Google
       </button>
 
+      <!--
+        Use the app without signing in: the binders are saved on this
+        device only (no Google Drive). It's a button that looks like a link.
+        Signing in later (bottom right of the page) uploads them to Drive.
+      -->
+      <p class="skip-login">
+        <button id="skipLoginButton" class="skip-login-button" type="button">Skip login, local use only</button>
+      </p>
+
       <!-- Messages about signing in (for example if it was cancelled) -->
       <p id="signInMessage" class="sign-in-message" role="status"></p>
     </section>
@@ -101,7 +110,8 @@
       landing.js fills the grid with a closed binder for each of the user's
       binders, plus a "+" binder for making a new one (as many as wanted).
       Binders can be dragged to put them in order, or onto the edit or
-      delete circles (below). (Sign out is in the footer, at the bottom right.)
+      delete circles (below). (Sign out is in the footer, at the bottom right;
+      when using the app locally, "Sign in with Google" is there instead.)
     -->
     <section id="signedInView" class="shelf-area" aria-labelledby="shelfTitle" hidden>
       <div class="account-line">
@@ -146,7 +156,8 @@
           <legend class="dialog-text">Choose a color symbol for the cover, or none.</legend>
           <div id="colorChoices" class="color-groups"></div>
         </fieldset>
-        <!-- The binder's cover color: seven round swatches (black to start).
+        <!-- The binder's cover color: nine round swatches plus "Custom" (any
+             color, from the device's color chooser), black to start.
              binder-dialog.js adds the swatches. -->
         <fieldset class="color-choices">
           <legend class="dialog-text">Cover color</legend>
@@ -199,8 +210,9 @@
           <legend class="dialog-text">Cover symbol</legend>
           <div id="editColorChoices" class="color-groups"></div>
         </fieldset>
-        <!-- The binder's cover color: seven round swatches, with the
-             binder's current color picked. landing.js adds the swatches. -->
+        <!-- The binder's cover color: nine round swatches plus "Custom" (any
+             color, from the device's color chooser), with the
+             binder's current color picked. binder-dialog.js adds the swatches. -->
         <fieldset class="color-choices">
           <legend class="dialog-text">Cover color</legend>
           <div id="editCoverChoices" class="cover-grid"></div>
@@ -268,7 +280,8 @@
         <li><a href="cardsearch.html">MTG Card Finder</a></li>
       </ul>
     </nav>
-    <!-- "Sign out" at the far right. Hidden until someone is signed in. -->
+    <!-- "Sign out" at the far right ("Sign in with Google" when using the app
+         locally, without signing in). Hidden until someone is using the binders. -->
     <button id="footerSignOut" class="footer-signout" type="button" hidden>Sign out</button>
   </footer>
 

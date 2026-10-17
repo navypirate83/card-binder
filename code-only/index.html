@@ -22,6 +22,7 @@
   </script>
 
   <link rel="stylesheet" href="landing.css">
+  <link rel="stylesheet" href="binder-dialog.css">
 </head>
 <body>
   <header class="topbar">
@@ -57,6 +58,10 @@
         </svg>
         Sign in with Google
       </button>
+
+      <p class="skip-login">
+        <button id="skipLoginButton" class="skip-login-button" type="button">Skip login, local use only</button>
+      </p>
 
       <p id="signInMessage" class="sign-in-message" role="status"></p>
     </section>
@@ -169,6 +174,8 @@
   <script src="binder-storage.js"></script>
 
   <script src="google-drive.js"></script>
+
+  <script src="binder-dialog.js"></script>
 
   <script src="landing.js"></script>
 </body>

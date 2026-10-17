@@ -75,6 +75,35 @@ function fillPocket(pocket, page, slot) {
   }
 
   pocket.appendChild(link);
+  if (card) pocket.appendChild(copiesBar(card, pocketKey(page, slot)));
+}
+
+function copiesBar(card, key) {
+  const count = cardCount(card);
+  const bar = document.createElement('div');
+  bar.className = 'copies-bar';
+  bar.dataset.key = key;
+
+  const minus = document.createElement('button');
+  minus.type = 'button';
+  minus.className = 'copies-minus';
+  minus.textContent = '−';
+  minus.setAttribute('aria-label', count > 1 ? `One fewer ${card.name}` : `Remove ${card.name}`);
+
+  const number = document.createElement('span');
+  number.className = 'copies-count';
+  number.textContent = count;
+  number.setAttribute('aria-label', `${count} owned`);
+
+  const plus = document.createElement('button');
+  plus.type = 'button';
+  plus.className = 'copies-plus';
+  plus.textContent = '+';
+  plus.setAttribute('aria-label', `One more ${card.name}`);
+  plus.disabled = count >= MAX_COPIES;
+
+  bar.append(minus, number, plus);
+  return bar;
 }
 
 function buildPages() {
@@ -487,15 +516,7 @@ function endDrag(x, y) {
   }
 
   if (removing) {
-    const removed = binderCards[fromKey];
-    delete binderCards[fromKey];
-    if (!saveBinder(binderCards)) {
-      binderCards[fromKey] = removed;
-      alert('Your browser blocked saving, so the card could not be removed.');
-      return;
-    }
-    refreshPocket(fromKey);
-    scheduleDriveSave();
+    removeCard(fromKey);
     return;
   }
 
@@ -536,6 +557,7 @@ function finishDrag() {
 
 binder.addEventListener('pointerdown', (event) => {
   if (event.pointerType === 'touch' || event.button !== 0) return;
+  if (event.target.closest('.copies-bar')) return;
   const pocket = event.target.closest('.pocket');
   if (!pocket || !binderCards[keyOf(pocket)] || turning) return;
   event.preventDefault();
@@ -562,6 +584,7 @@ window.addEventListener('pointerup', (event) => {
 
 binder.addEventListener('touchstart', (event) => {
   if (event.touches.length !== 1 || turning) return;
+  if (event.target.closest('.copies-bar')) return;
   const pocket = event.target.closest('.pocket');
   if (!pocket || !binderCards[keyOf(pocket)]) return;
   const touch = event.touches[0];
@@ -624,6 +647,67 @@ binder.addEventListener('contextmenu', (event) => {
   if (event.target.closest('.pocket-card')) event.preventDefault();
 });
 
+const removeCardDialog = document.getElementById('removeCardDialog');
+const removeCardText   = document.getElementById('removeCardText');
+
+let removingKey = null;
+
+function removeCard(key) {
+  const removed = binderCards[key];
+  if (!removed) return;
+  delete binderCards[key];
+  if (!saveBinder(binderCards)) {
+    binderCards[key] = removed;
+    alert('Your browser blocked saving, so the card could not be removed.');
+    return;
+  }
+  refreshPocket(key);
+  scheduleDriveSave();
+}
+
+function setCopies(key, count) {
+  const before = binderCards[key];
+  if (!before) return;
+  binderCards[key] = withCount(before, count);
+  if (!saveBinder(binderCards)) {
+    binderCards[key] = before;
+    alert('Your browser blocked saving, so the number could not be changed.');
+    return;
+  }
+  refreshPocket(key);
+  scheduleDriveSave();
+}
+
+binder.addEventListener('click', (event) => {
+  const button = event.target.closest('.copies-minus, .copies-plus');
+  if (!button) return;
+  const key = button.closest('.copies-bar').dataset.key;
+  const card = binderCards[key];
+  if (!card) return;
+  const count = cardCount(card);
+
+  if (button.classList.contains('copies-plus')) {
+    setCopies(key, count + 1);
+    pocketElement(key).querySelector('.copies-plus').focus();
+  } else if (count > 1) {
+    setCopies(key, count - 1);
+    pocketElement(key).querySelector('.copies-minus').focus();
+  } else {
+    removingKey = key;
+    removeCardText.textContent = `Remove "${card.name}" from this binder?`;
+    removeCardDialog.returnValue = '';
+    removeCardDialog.showModal();
+  }
+});
+
+removeCardDialog.addEventListener('close', () => {
+  if (removeCardDialog.returnValue === 'yes' && removingKey) removeCard(removingKey);
+  removingKey = null;
+});
+removeCardDialog.addEventListener('click', (event) => {
+  if (event.target === removeCardDialog) removeCardDialog.close('no');
+});
+
 const startPage = parseInt(new URLSearchParams(location.search).get('page'), 10);
 if (startPage >= 1 && startPage <= TOTAL_PAGES) currentPage = startPage;
 showPages();
@@ -640,6 +724,14 @@ downloadButton.addEventListener('click', () => {
   link.remove();
   URL.revokeObjectURL(link.href);   // free the memory the file was using
 });
+
+// Using the app locally (no sign-in): no .JSON download or upload. The
+// two links (and the hidden file picker) are taken off the page.
+if (isLocalMode()) {
+  downloadButton.remove();
+  uploadButton.remove();
+  fileInput.remove();
+}
 
 // UPLOAD: the Upload button opens the (hidden) file picker.
 uploadButton.addEventListener('click', () => fileInput.click());
@@ -742,9 +834,18 @@ function replaceAllCards(cards) {
   }
 }
 
+// Using the app locally (no sign-in): every change is already saved on
+// this device, so just say so in the top bar (or say where a moved card
+// went, see MOVING A CARD TO ANOTHER BINDER).
+function showSavedLocally() {
+  setSyncStatus('saved', savedNote || '✓ Saved on this device');
+  savedNote = null;
+}
+
 // Bring this binder up to date with Google Drive now.
 async function syncWithDrive() {
   clearTimeout(driveSaveTimer);
+  if (isLocalMode()) { showSavedLocally(); return; }
   if (!isSignedIn()) {
     setSyncStatus('signed-out', binderDirtyStamp(BINDER_ID) ? 'Not saved to Drive yet' : '');
     return;
@@ -771,6 +872,7 @@ async function syncWithDrive() {
 // changes come in quickly).
 function scheduleDriveSave() {
   clearTimeout(driveSaveTimer);
+  if (isLocalMode()) { showSavedLocally(); return; }
   if (!isSignedIn()) {
     setSyncStatus('signed-out', 'Not saved to Drive yet');
     return;
@@ -794,19 +896,9 @@ syncConnect.addEventListener('click', async () => {
 initGoogleSignIn().catch(() => { /* the Connect button explains if needed */ });
 if (BINDER_ID) syncWithDrive();
 
-// The "Sign out" link at the bottom right (google-drive.js saves any
-// unsaved changes first). Afterwards, go to the sign-in screen.
+// The link at the bottom right: "Sign out" (google-drive.js saves any
+// unsaved changes first; afterwards, go to the sign-in screen), or "Sign in
 setUpFooterSignOut(() => { location.href = 'index.html'; });
-
-/* =====================================================================
-   MOVING A CARD TO ANOTHER BINDER
-   Drop a card on the blue "move" circle to open the "Move card to…"
-   window. Pick one of your other binders and the card goes into that
-   binder's first empty pocket (and leaves this one). Or type a name and
-   click "New binder & move" to make a new binder with just this card.
-   The other binder is fetched fresh from Google Drive first, so cards
-   added to it on another computer aren't overwritten.
-   ===================================================================== */
 
 const moveCardDialog  = document.getElementById('moveCardDialog');
 const moveCardText    = document.getElementById('moveCardText');
@@ -815,36 +907,31 @@ const moveNewName     = document.getElementById('moveNewName');
 const moveNewCount    = document.getElementById('moveNewCount');
 const moveToNewButton = document.getElementById('moveToNewButton');
 const moveMessage     = document.getElementById('moveMessage');
+const moveHowMany     = document.getElementById('moveHowMany');
+const moveAmount      = document.getElementById('moveAmount');
+const moveAmountNote  = document.getElementById('moveAmountNote');
 
-// How many cards fit in a binder: its pages x 16 pockets (160 for 10 pages).
 function binderCapacity(id) {
   return binderPages(id) * POCKETS_PER_PAGE;
 }
 
-// The pocket ("3-5") of the card being moved, while the window is open.
 let movingKey = null;
 
-// Show a message in the window (red if it's a problem).
 function setMoveMessage(text, isError = false) {
   moveMessage.textContent = text;
   moveMessage.classList.toggle('error', isError);
 }
 
-// While a move is being saved, grey out every button so it can't be
-// clicked twice.
 function setMoveBusy(busy) {
   for (const button of moveCardDialog.querySelectorAll('button, input')) button.disabled = busy;
-  if (!busy) refreshMoveTargets();   // re-grey any full binders
+  if (!busy) refreshMoveTargets();
 }
 
-// Keep the "5 / 12" counter next to the new binder's name box up to date.
 function showMoveNameCount() {
   moveNewCount.textContent = `${moveNewName.value.length} / ${moveNewName.maxLength}`;
 }
 moveNewName.addEventListener('input', showMoveNameCount);
 
-// Build the list of the user's other binders: one button each, with its
-// cover symbol, name and card count. Full binders can't be picked.
 function refreshMoveTargets() {
   moveTargets.replaceChildren();
   const others = loadBinderList().filter((b) => b.id !== BINDER_ID);
@@ -863,7 +950,6 @@ function refreshMoveTargets() {
     button.className = 'move-target';
     button.disabled = full;
 
-    // The binder's cover symbol (or an empty spot if it has none).
     const color = manaColor(other.color);
     const symbol = document.createElement(color ? 'img' : 'span');
     symbol.className = 'move-symbol';
@@ -883,17 +969,21 @@ function refreshMoveTargets() {
   }
 }
 
-// Open the window for the card in a pocket.
 function openMoveDialog(key) {
   const card = binderCards[key];
   if (!card) return;
   movingKey = key;
   moveCardText.textContent = `Pick a binder for "${card.name}". It goes into that binder's first empty pocket.`;
   setMoveMessage('');
+
+  const owned = cardCount(card);
+  moveHowMany.hidden = owned < 2;
+  moveAmount.max = owned;
+  moveAmount.value = owned;
+  moveAmountNote.textContent = `of ${owned}`;
   refreshMoveTargets();
 
-  // The "new binder" part: its name box starts with the next free name.
-  moveNewName.value = nextBinderName();   // binder-storage.js
+  moveNewName.value = nextBinderName();
   showMoveNameCount();
 
   moveCardDialog.returnValue = '';
@@ -901,96 +991,94 @@ function openMoveDialog(key) {
   refreshMoveCountsFromDrive();
 }
 
-// The card counts in the list come from this browser's copies, which can
-// be out of date (a binder may have been filled on another computer). So
-// once the window is open, fetch each other binder from Google Drive in the
-// background and redraw the list with the real counts (and "Full" labels).
-// If that isn't possible right now (not signed in), the list stays as is;
-// the move itself always fetches the target binder fresh anyway.
 async function refreshMoveCountsFromDrive() {
   if (!isSignedIn()) return;
   const others = loadBinderList().filter((b) => b.id !== BINDER_ID);
-  await Promise.all(others.map((b) => syncBinder(b.id).catch(() => { /* keep the old count */ })));
-  // Only redraw if the window is still open and no move is in progress.
+  await Promise.all(others.map((b) => syncBinder(b.id).catch(() => {  })));
   if (moveCardDialog.open && !moveToNewButton.disabled) refreshMoveTargets();
 }
 
-// Make sure we're signed in to Google before saving to another binder
-// (opens Google's sign-in window if the sign-in has run out). This runs
-// straight from a click, which browsers require for pop-up windows.
 async function ensureSignedIn() {
-  if (!isSignedIn()) await signInWithGoogle();   // google-drive.js
+  if (!isLocalMode() && !isSignedIn()) await signInWithGoogle();
 }
 
-// Move the card into another binder's first empty pocket.
+function amountToMove(card) {
+  const owned = cardCount(card);
+  if (moveHowMany.hidden) return owned;
+  const typed = Math.round(Number(moveAmount.value));
+  return Number.isFinite(typed) ? Math.min(Math.max(typed, 1), owned) : owned;
+}
+
 async function moveCardTo(targetId) {
   const card = binderCards[movingKey];
   if (!card) return;
+  const amount = amountToMove(card);
   setMoveBusy(true);
   setMoveMessage('Moving…');
   try {
     await ensureSignedIn();
-    // Get the other binder's latest cards from Drive (or send it any
-    // changes this browser has for it first), then find its first gap.
     const cards = await syncBinder(targetId);
-    const spot = firstEmptyPocket(cards, binderPages(targetId));
-    if (!spot) {
-      setMoveBusy(false);
-      setMoveMessage(`"${binderName(targetId)}" is full.`, true);
-      return;
+    const sameKey = Object.keys(cards).find((k) => samePrinting(cards[k], card));
+    let page;
+    if (sameKey) {
+      cards[sameKey] = withCount(cards[sameKey], cardCount(cards[sameKey]) + amount);
+      page = sameKey.split('-')[0];
+    } else {
+      const spot = firstEmptyPocket(cards, binderPages(targetId));
+      if (!spot) {
+        setMoveBusy(false);
+        setMoveMessage(`"${binderName(targetId)}" is full.`, true);
+        return;
+      }
+      cards[pocketKey(spot.page, spot.slot)] = withCount(card, amount);
+      page = spot.page;
     }
-    cards[pocketKey(spot.page, spot.slot)] = card;
-    saveBinder(cards, targetId);   // keep it in this browser (marked "needs saving")...
-    await syncBinder(targetId);    // ...and save it to Drive
-    takeMovedCardOut(`✓ Moved to ${binderName(targetId)}, page ${spot.page}`);
+    saveBinder(cards, targetId);
+    await syncBinder(targetId);
+    takeMovedCardOut(`✓ Moved ${amount > 1 ? `${amount} ` : ''}to ${binderName(targetId)}, page ${page}`, amount);
   } catch (err) {
     setMoveBusy(false);
     setMoveMessage(err.message, true);
   }
 }
 
-// Make a new binder (with the typed name, or the next free "Binder N")
-// holding just this card, in its first pocket.
 moveToNewButton.addEventListener('click', async () => {
   const card = binderCards[movingKey];
   if (!card) return;
+  const amount = amountToMove(card);
   const binders = loadBinderList();
   const name = moveNewName.value.trim().slice(0, moveNewName.maxLength) || nextBinderName();
   setMoveBusy(true);
   setMoveMessage('Making the new binder…');
   try {
     await ensureSignedIn();
-    const cards = { [pocketKey(1, 1)]: card };
-    // It goes at the end of the shelf on the My Binders page, with no
-    // symbol and the usual black cover (both can be changed there later).
+    const cards = { [pocketKey(1, 1)]: withCount(card, amount) };
     const file = await createBinderFile(name, cards, null, binders.length);
     binders.push({ id: file.id, name, color: null, cover: DEFAULT_COVER, pages: DEFAULT_PAGES });
     saveBinderList(binders);
     saveBinder(cards, file.id, { dirty: false });
-    takeMovedCardOut(`✓ Moved to new binder ${name}`);
+    takeMovedCardOut(`✓ Moved ${amount > 1 ? `${amount} ` : ''}to new binder ${name}`, amount);
   } catch (err) {
     setMoveBusy(false);
     setMoveMessage(err.message, true);
   }
 });
 
-// The card is safely in the other binder: take it out of this one, close
-// the window, and save this binder too.
-function takeMovedCardOut(note) {
-  delete binderCards[movingKey];
+function takeMovedCardOut(note, amount) {
+  const left = cardCount(binderCards[movingKey]) - amount;
+  if (left > 0) binderCards[movingKey] = withCount(binderCards[movingKey], left);
+  else delete binderCards[movingKey];
   saveBinder(binderCards);
-  refreshPocket(movingKey);       // its pocket goes back to a "+"
+  refreshPocket(movingKey);
   movingKey = null;
   setMoveBusy(false);
   moveCardDialog.close('done');
-  savedNote = note;               // shown in the top bar once saved
+  savedNote = note;
   scheduleDriveSave();
 }
 
-// Cancel (or Escape) closes the window without moving anything.
 moveCardDialog.addEventListener('close', () => { movingKey = null; });
 
-// Clicking on the dimmed area outside the window closes it too.
 moveCardDialog.addEventListener('click', (event) => {
   if (event.target === moveCardDialog) moveCardDialog.close('cancel');
 });

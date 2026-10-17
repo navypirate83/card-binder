@@ -45,6 +45,8 @@
       Save / load the binder's cards as a .JSON file (a plain text file of
       data). They're buttons, styled to look like links. The file picker
       input is hidden: the Upload button opens it for you.
+      (javascript.js takes these off the page when the app is used locally,
+      without signing in.)
     -->
     <div class="binder-tools">
       <button id="downloadJson" class="tool-link" type="button">
@@ -137,6 +139,7 @@
       The "Move card to…" window: opens when a card is dropped on the blue
       move circle. A <dialog> is a pop-up window built into the browser: it
       sits on top of the page and dims everything behind it.
+      - If the pocket holds several copies, a "How many to move" box.
       - The list (filled in by javascript.js) has a button for each of the
         user's other binders; picking one moves the card there.
       - Below it, a name box and "New binder & move" make a new binder with
@@ -147,6 +150,19 @@
       <form method="dialog">
         <h2 id="moveCardTitle" class="dialog-title">Move card to…</h2>
         <p id="moveCardText" class="dialog-text"></p>
+        <!--
+          "How many to move": only shown when the pocket holds more than one
+          copy of the card. A number box from 1 up to how many you own
+          (javascript.js sets the limit and starts it at all of them); the
+          rest stay in this binder.
+        -->
+        <div id="moveHowMany" class="move-how-many" hidden>
+          <label class="field-label" for="moveAmount">How many to move</label>
+          <div class="move-amount-row">
+            <input id="moveAmount" class="move-amount" type="number" min="1" step="1" inputmode="numeric">
+            <span id="moveAmountNote" class="move-amount-note"></span>
+          </div>
+        </div>
         <div id="moveTargets" class="move-targets"></div>
 
         <div class="move-new">
@@ -167,6 +183,22 @@
 
         <div class="dialog-buttons">
           <button value="cancel" class="dialog-button" type="submit">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!--
+      The "Remove this card?" window: opens when "−" is tapped on a card
+      that has only one copy left. "No" comes first so pressing Enter does
+      the safe thing. javascript.js fills in the card's name.
+    -->
+    <dialog id="removeCardDialog" class="move-dialog" aria-labelledby="removeCardTitle">
+      <form method="dialog">
+        <h2 id="removeCardTitle" class="dialog-title">Remove card?</h2>
+        <p id="removeCardText" class="dialog-text"></p>
+        <div class="dialog-buttons">
+          <button value="no" class="dialog-button" type="submit">No</button>
+          <button value="yes" class="dialog-button danger" type="submit">Yes, remove</button>
         </div>
       </form>
     </dialog>
@@ -194,7 +226,8 @@
         <li><a id="cardSearchLink" href="cardsearch.html">MTG Card Finder</a></li>
       </ul>
     </nav>
-    <!-- "Sign out" at the far right. Hidden until someone is signed in. -->
+    <!-- "Sign out" at the far right ("Sign in with Google" when using the app
+         locally, without signing in). Hidden until someone is using the binders. -->
     <button id="footerSignOut" class="footer-signout" type="button" hidden>Sign out</button>
   </footer>
 

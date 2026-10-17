@@ -22,6 +22,7 @@
   </script>
 
   <link rel="stylesheet" href="cardsearch.css">
+  <link rel="stylesheet" href="binder-dialog.css">
 </head>
 <body>
   <header class="topbar">
@@ -125,6 +126,30 @@
     </section>
   </main>
 
+  <dialog id="newBinderDialog" class="new-binder-dialog" aria-labelledby="newBinderTitle">
+    <form method="dialog">
+      <h2 id="newBinderTitle" class="dialog-title">New binder</h2>
+      <label class="field-label" for="newBinderName">Name</label>
+      <div class="name-field">
+        <input id="newBinderName" class="name-input" type="text"
+               maxlength="12" autocomplete="off" spellcheck="false" required>
+        <span id="newNameCount" class="name-count" aria-live="polite"></span>
+      </div>
+      <fieldset class="color-choices">
+        <legend class="dialog-text">Choose a color symbol for the cover, or none.</legend>
+        <div id="colorChoices" class="color-groups"></div>
+      </fieldset>
+      <fieldset class="color-choices">
+        <legend class="dialog-text">Cover color</legend>
+        <div id="coverChoices" class="cover-grid"></div>
+      </fieldset>
+      <div class="dialog-buttons">
+        <button value="create" class="dialog-button primary" type="submit">Create binder</button>
+        <button value="cancel" class="dialog-button" type="submit" formnovalidate>Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
   <footer class="site-footer">
     <nav aria-label="All pages">
       <ul class="footer-links">
@@ -141,6 +166,8 @@
   <script src="binder-storage.js"></script>
 
   <script src="google-drive.js"></script>
+
+  <script src="binder-dialog.js"></script>
 
   <script src="cardsearch.js"></script>
 </body>

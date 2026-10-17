@@ -168,6 +168,22 @@ main {
 
 .google-logo { width: 20px; height: 20px; }
 
+.skip-login {
+  margin: 18px 0 0;
+}
+.skip-login-button {
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.skip-login-button:hover { filter: brightness(1.15); }
+
 .sign-in-message {
   min-height: 1.4em;
   margin: 16px 0 0;
@@ -252,9 +268,7 @@ main {
   --cover-label-line: rgba(255, 255, 255, 0.16);
   --cover-label-fill: rgba(255, 255, 255, 0.05);
 }
-.closed-binder.cover-white,
-.closed-binder.cover-gold,
-.closed-binder.cover-gray {
+.closed-binder.light-cover {
   --cover-text: #24211c;
   --cover-label-line: rgba(0, 0, 0, 0.28);
   --cover-label-fill: rgba(255, 255, 255, 0.35);

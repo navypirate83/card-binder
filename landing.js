@@ -1,11 +1,12 @@
 /* =========================================================================
    landing.js — all the code that makes index.html (the landing page) work:
-   the light/dark switch, signing in with Google, and the shelf of binders
+   the light/dark switch, signing in with Google (or skipping it to use
+   the app locally, on this device only), and the shelf of binders
    (open one; make a new one with the "+" binder, with a name and a Magic
    symbol for its cover; drag binders to reorder them, or onto the pencil
    to edit them or the red X to delete them).
-   It's loaded at the bottom of index.html, after binder-storage.js and
-   google-drive.js (which it uses).
+   It's loaded at the bottom of index.html, after binder-storage.js,
+   google-drive.js and binder-dialog.js (which it uses).
    ========================================================================= */
 
 /* =====================================================================
@@ -16,6 +17,7 @@ const root           = document.documentElement;   // the <html> tag
 const themeSwitch    = document.getElementById('themeSwitch');
 const signedOutView  = document.getElementById('signedOutView');
 const signInButton   = document.getElementById('signInButton');
+const skipLoginButton = document.getElementById('skipLoginButton');   // "Skip login, local use only"
 const signInMessage  = document.getElementById('signInMessage');
 const signedInView   = document.getElementById('signedInView');
 const accountName    = document.getElementById('accountName');
@@ -98,13 +100,49 @@ signInButton.addEventListener('click', async () => {
   }
 });
 
-// The "Sign out" link at the bottom right (google-drive.js does the
-// saving, signing out and forgetting). Afterwards, show the sign-in screen.
-setUpFooterSignOut(() => showSignedOut('You\'re signed out.'));
+// "Skip login, local use only": use the app without signing in, with the
+// binders saved on this device only.
+// If this browser still has binders from someone's Google account (their
+// sign-in ran out but they never signed out), those belong in Drive, not
+// here: forget them first (asking before losing changes not yet saved to
+// Drive), so they don't get mixed in with the local binders.
+skipLoginButton.addEventListener('click', () => {
+  const leftover = loadBinderList();
+  if (leftover.some((b) => binderDirtyStamp(b.id)) &&
+      !confirm('This browser has binder changes that haven\'t been saved to Google Drive yet. ' +
+               'Using the app locally will forget them. Continue?')) {
+    return;
+  }
+  clearAllBinders();     // binder-storage.js
+  setLocalMode(true);
+  showLocalOnly();
+});
+
+// The link at the bottom right (google-drive.js does the work):
+//  - "Sign out" (saving, signing out and forgetting): afterwards, show the
+//    sign-in screen.
+//  - "Sign in with Google" when using the app locally (signing in, then
+//    uploading the local binders to Drive): afterwards, show the binders
+//    from Drive, the uploaded ones included.
+setUpFooterSignOut(() => showSignedOut('You\'re signed out.'), () => showSignedIn());
 
 /* =====================================================================
    THE SHELF OF BINDERS
    ===================================================================== */
+
+// Show the shelf using the app locally (no sign-in): the binders saved on
+// this device. Everything works the same as when signed in (the Drive
+// steps in google-drive.js just skip Drive), and "Sign in with Google" at
+// the bottom right uploads them to Drive.
+function showLocalOnly() {
+  signedOutView.hidden = true;
+  signedInView.hidden = false;
+  myBindersItem.hidden = false;   // show the "My Binders" link
+  showFooterAccountLink();        // and "Sign in with Google" (google-drive.js)
+  accountName.textContent = 'Saved on this device only';
+  renderShelf(loadBinderList());
+  setShelfMessage('');
+}
 
 // Show the signed-in view: who's signed in, and their binders. The
 // binders this browser already knows about appear straight away, then
@@ -112,7 +150,7 @@ setUpFooterSignOut(() => showSignedOut('You\'re signed out.'));
 async function showSignedIn() {
   signedOutView.hidden = true;
   signedInView.hidden = false;
-  footerSignOut.hidden = false;   // show "Sign out" at the bottom right
+  showFooterAccountLink();        // show "Sign out" at the bottom right (google-drive.js)
   myBindersItem.hidden = false;   // and the "My Binders" link
   renderShelf(loadBinderList());
   setShelfMessage('Loading your binders…');
@@ -259,11 +297,12 @@ window.addEventListener('resize', fitCoverLabels);
 // Build the picture of a closed binder. With a name, it gets a label
 // window on the cover showing the name. With a color code ("U" etc.), that
 // color's symbol goes in the center of the cover. "coverCode" is the cover's
-// color from COVER_COLORS ("gold" etc.); landing.css colors the binder from
-// its "cover-gold" class. Left out (like the "+" binder), it's black.
+// color ("gold", or a custom "#3a7bd5"), colored by applyCoverColor
+// (binder-dialog.js). Left out (like the "+" binder), it's black.
 function closedBinder(name, colorCode, coverCode) {
   const cover = document.createElement('span');
-  cover.className = `closed-binder cover-${cleanCover(coverCode)}`;
+  cover.className = 'closed-binder';
+  applyCoverColor(cover, coverCode);
   if (name) {
     const label = document.createElement('span');
     label.className = 'cover-label';
@@ -280,11 +319,6 @@ function closedBinder(name, colorCode, coverCode) {
     cover.appendChild(symbol);
   }
   return cover;
-}
-
-// The readable name of a cover color code, e.g. "gray" -> "Light gray".
-function coverColorName(code) {
-  return COVER_COLORS.find((c) => c.code === cleanCover(code)).name;
 }
 
 // Build the small caption under a binder.
@@ -628,7 +662,7 @@ function openEditDialog(id) {
   binderPagesInput.value = binderPages(id);
   updatePagesNote();
   editBinderDialog.querySelector(`input[name="editColor"][value="${binder.color || ''}"]`).checked = true;
-  editBinderDialog.querySelector(`input[name="editCover"][value="${cleanCover(binder.cover)}"]`).checked = true;
+  setPickedCoverColor(editCoverChoices, binder.cover);   // binder-dialog.js
   // Forget which button closed the window last time, so closing it with
   // Escape now can't count as an old "Save".
   editBinderDialog.returnValue = '';
@@ -647,8 +681,7 @@ editBinderDialog.addEventListener('close', async () => {
   if (!name) return;
   const picked = editBinderDialog.querySelector('input[name="editColor"]:checked');
   const color = picked && picked.value ? picked.value : null;
-  const pickedCover = editBinderDialog.querySelector('input[name="editCover"]:checked');
-  const cover = cleanCover(pickedCover && pickedCover.value);
+  const cover = pickedCoverColor(editCoverChoices);   // binder-dialog.js
   // The page count, kept within the limits just in case (cleanPageCount
   // caps it at MAX_PAGES; this keeps it at or above the smallest allowed).
   let pages = Math.max(cleanPageCount(binderPagesInput.value), Number(binderPagesInput.min));
@@ -710,15 +743,19 @@ function openDeleteDialog(id) {
   if (!binder) return;
   deletingId = id;
   const count = Object.keys(loadBinder(id)).length;
+  // Signed in, it goes to the Drive trash; used locally, it's gone for good.
   deleteBinderText.textContent =
     `"${binder.name}" and its ${cardCountText(count)} will be deleted. ` +
-    'It goes to your Google Drive trash, where it can be restored for 30 days.';
+    (isLocalMode()
+      ? 'It\'s only saved on this device, so it can\'t be brought back.'
+      : 'It goes to your Google Drive trash, where it can be restored for 30 days.');
   deleteBinderDialog.returnValue = '';   // forget last time's answer (see openEditDialog)
   deleteBinderDialog.showModal();
 }
 
-// "Yes, delete": move the binder's file to the Drive trash, then take it
-// off the shelf and out of this browser. "No" does nothing.
+// "Yes, delete": move the binder's file to the Drive trash (nothing to do
+// there when used locally), then take it off the shelf and out of this
+// browser. "No" does nothing.
 deleteBinderDialog.addEventListener('close', async () => {
   const id = deletingId;
   deletingId = null;
@@ -746,10 +783,13 @@ initGoogleSignIn().catch((err) => {
   if (signedOutView.hidden === false) signInMessage.textContent = err.message;
 });
 
-// Already signed in (earlier in this browser tab)? Go straight to the
-// binders. Otherwise show the sign-in screen. If the Google Client ID
+// Using the app locally (chosen earlier on this device)? Show the binders
+// saved here. Already signed in (earlier in this browser tab)? Go straight
+// to the binders. Otherwise show the sign-in screen. If the Google Client ID
 // hasn't been added yet, explain that instead of offering a broken button.
-if (isSignedIn()) {
+if (isLocalMode()) {
+  showLocalOnly();
+} else if (isSignedIn()) {
   showSignedIn();
 } else if (!googleIsConfigured()) {
   showSignedOut('Google sign-in isn\'t set up yet: the Google Client ID still needs to be added to google-drive.js.');

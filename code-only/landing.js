@@ -2,6 +2,7 @@ const root           = document.documentElement;
 const themeSwitch    = document.getElementById('themeSwitch');
 const signedOutView  = document.getElementById('signedOutView');
 const signInButton   = document.getElementById('signInButton');
+const skipLoginButton = document.getElementById('skipLoginButton');
 const signInMessage  = document.getElementById('signInMessage');
 const signedInView   = document.getElementById('signedInView');
 const accountName    = document.getElementById('accountName');
@@ -9,9 +10,6 @@ const footerSignOut  = document.getElementById('footerSignOut');
 const myBindersItem  = document.getElementById('myBindersItem');
 const binderShelf    = document.getElementById('binderShelf');
 const shelfMessage   = document.getElementById('shelfMessage');
-const newBinderDialog = document.getElementById('newBinderDialog');
-const colorChoices    = document.getElementById('colorChoices');
-const coverChoices    = document.getElementById('coverChoices');
 const editBinderDialog   = document.getElementById('editBinderDialog');
 const editColorChoices   = document.getElementById('editColorChoices');
 const editCoverChoices   = document.getElementById('editCoverChoices');
@@ -21,8 +19,6 @@ const deleteBinderDialog = document.getElementById('deleteBinderDialog');
 const deleteBinderText   = document.getElementById('deleteBinderText');
 const editDropZone       = document.getElementById('editDropZone');
 const deleteDropZone     = document.getElementById('deleteDropZone');
-const newBinderName      = document.getElementById('newBinderName');
-const newNameCount       = document.getElementById('newNameCount');
 const binderPagesInput   = document.getElementById('binderPagesInput');
 const pagesNote          = document.getElementById('pagesNote');
 
@@ -67,12 +63,34 @@ signInButton.addEventListener('click', async () => {
   }
 });
 
-setUpFooterSignOut(() => showSignedOut('You\'re signed out.'));
+skipLoginButton.addEventListener('click', () => {
+  const leftover = loadBinderList();
+  if (leftover.some((b) => binderDirtyStamp(b.id)) &&
+      !confirm('This browser has binder changes that haven\'t been saved to Google Drive yet. ' +
+               'Using the app locally will forget them. Continue?')) {
+    return;
+  }
+  clearAllBinders();
+  setLocalMode(true);
+  showLocalOnly();
+});
+
+setUpFooterSignOut(() => showSignedOut('You\'re signed out.'), () => showSignedIn());
+
+function showLocalOnly() {
+  signedOutView.hidden = true;
+  signedInView.hidden = false;
+  myBindersItem.hidden = false;
+  showFooterAccountLink();
+  accountName.textContent = 'Saved on this device only';
+  renderShelf(loadBinderList());
+  setShelfMessage('');
+}
 
 async function showSignedIn() {
   signedOutView.hidden = true;
   signedInView.hidden = false;
-  footerSignOut.hidden = false;
+  showFooterAccountLink();
   myBindersItem.hidden = false;
   renderShelf(loadBinderList());
   setShelfMessage('Loading your binders…');
@@ -155,7 +173,7 @@ function renderShelf(binders) {
   plus.textContent = '+';
   cover.appendChild(plus);
   addTile.append(cover, caption('New binder'));
-  addTile.addEventListener('click', openNewBinderDialog);
+  addTile.addEventListener('click', () => openNewBinderDialog(makeNewBinder));
   binderShelf.appendChild(addTile);
 
   fitCoverLabels();
@@ -187,7 +205,8 @@ window.addEventListener('resize', fitCoverLabels);
 
 function closedBinder(name, colorCode, coverCode) {
   const cover = document.createElement('span');
-  cover.className = `closed-binder cover-${cleanCover(coverCode)}`;
+  cover.className = 'closed-binder';
+  applyCoverColor(cover, coverCode);
   if (name) {
     const label = document.createElement('span');
     label.className = 'cover-label';
@@ -206,113 +225,12 @@ function closedBinder(name, colorCode, coverCode) {
   return cover;
 }
 
-function coverColorName(code) {
-  return COVER_COLORS.find((c) => c.code === cleanCover(code)).name;
-}
-
 function caption(text) {
   const span = document.createElement('span');
   span.className = 'tile-caption';
   span.textContent = text;
   return span;
 }
-
-function buildColorChoices(container, groupName) {
-  const singleRow = document.createElement('div');
-  singleRow.className = 'color-grid';
-  const twoHeading = document.createElement('p');
-  twoHeading.className = 'choice-group-title';
-  twoHeading.textContent = 'Two colors';
-  const twoRows = document.createElement('div');
-  twoRows.className = 'color-grid two-colors';
-  container.append(singleRow, twoHeading, twoRows);
-
-  const options = [{ code: '', name: 'None', short: 'None', group: 'single', symbol: null }, ...MANA_COLORS];
-  for (const option of options) {
-    const choice = document.createElement('label');
-    choice.className = 'color-choice';
-    choice.title = option.name;
-
-    const radio = document.createElement('input');
-    radio.type = 'radio';
-    radio.name = groupName;
-    radio.value = option.code;
-    if (option.short !== option.name) radio.setAttribute('aria-label', `${option.name}, ${option.short}`);
-
-    let picture;
-    if (option.symbol) {
-      picture = document.createElement('img');
-      picture.src = option.symbol;
-      picture.alt = '';
-    } else {
-      picture = document.createElement('span');
-      picture.className = 'no-symbol';
-    }
-    picture.classList.add('choice-symbol');
-
-    const label = document.createElement('span');
-    label.className = 'choice-name';
-    label.textContent = option.short;
-
-    choice.append(radio, picture, label);
-    (option.group === 'two' ? twoRows : singleRow).appendChild(choice);
-  }
-}
-buildColorChoices(colorChoices, 'binderColor');
-
-function buildCoverChoices(container, groupName) {
-  for (const option of COVER_COLORS) {
-    const choice = document.createElement('label');
-    choice.className = 'color-choice';
-    choice.title = option.name;
-
-    const radio = document.createElement('input');
-    radio.type = 'radio';
-    radio.name = groupName;
-    radio.value = option.code;
-
-    const swatch = document.createElement('span');
-    swatch.className = `cover-swatch cover-${option.code}`;
-
-    const label = document.createElement('span');
-    label.className = 'choice-name';
-    label.textContent = option.name;
-
-    choice.append(radio, swatch, label);
-    container.appendChild(choice);
-  }
-}
-buildCoverChoices(coverChoices, 'binderCover');
-
-function showNameCount(input, counter) {
-  counter.textContent = `${input.value.length} / ${input.maxLength}`;
-}
-newBinderName.addEventListener('input', () => showNameCount(newBinderName, newNameCount));
-
-function openNewBinderDialog() {
-  newBinderName.value = nextBinderName();
-  showNameCount(newBinderName, newNameCount);
-  newBinderDialog.querySelector('input[name="binderColor"][value=""]').checked = true;
-  newBinderDialog.querySelector(`input[name="binderCover"][value="${DEFAULT_COVER}"]`).checked = true;
-  newBinderDialog.returnValue = '';
-  newBinderDialog.showModal();
-  newBinderName.select();
-}
-
-newBinderDialog.addEventListener('close', () => {
-  if (newBinderDialog.returnValue !== 'create') return;
-  const picked = newBinderDialog.querySelector('input[name="binderColor"]:checked');
-  const pickedCover = newBinderDialog.querySelector('input[name="binderCover"]:checked');
-  const name = newBinderName.value.trim().slice(0, newBinderName.maxLength) || nextBinderName();
-  makeNewBinder(name, picked && picked.value ? picked.value : null, cleanCover(pickedCover && pickedCover.value));
-});
-
-function closeOnBackdropClick(dialog) {
-  dialog.addEventListener('click', (event) => {
-    if (event.target === dialog) dialog.close('cancel');
-  });
-}
-closeOnBackdropClick(newBinderDialog);
 
 async function makeNewBinder(name, color, cover) {
   const binders = loadBinderList();
@@ -561,7 +479,7 @@ function openEditDialog(id) {
   binderPagesInput.value = binderPages(id);
   updatePagesNote();
   editBinderDialog.querySelector(`input[name="editColor"][value="${binder.color || ''}"]`).checked = true;
-  editBinderDialog.querySelector(`input[name="editCover"][value="${cleanCover(binder.cover)}"]`).checked = true;
+  setPickedCoverColor(editCoverChoices, binder.cover);
   editBinderDialog.returnValue = '';
   editBinderDialog.showModal();
   binderNameInput.select();
@@ -575,8 +493,7 @@ editBinderDialog.addEventListener('close', async () => {
   if (!name) return;
   const picked = editBinderDialog.querySelector('input[name="editColor"]:checked');
   const color = picked && picked.value ? picked.value : null;
-  const pickedCover = editBinderDialog.querySelector('input[name="editCover"]:checked');
-  const cover = cleanCover(pickedCover && pickedCover.value);
+  const cover = pickedCoverColor(editCoverChoices);
   let pages = Math.max(cleanPageCount(binderPagesInput.value), Number(binderPagesInput.min));
   const oldPages = binderPages(id);
 
@@ -625,7 +542,9 @@ function openDeleteDialog(id) {
   const count = Object.keys(loadBinder(id)).length;
   deleteBinderText.textContent =
     `"${binder.name}" and its ${cardCountText(count)} will be deleted. ` +
-    'It goes to your Google Drive trash, where it can be restored for 30 days.';
+    (isLocalMode()
+      ? 'It\'s only saved on this device, so it can\'t be brought back.'
+      : 'It goes to your Google Drive trash, where it can be restored for 30 days.');
   deleteBinderDialog.returnValue = '';
   deleteBinderDialog.showModal();
 }
@@ -651,7 +570,9 @@ initGoogleSignIn().catch((err) => {
   if (signedOutView.hidden === false) signInMessage.textContent = err.message;
 });
 
-if (isSignedIn()) {
+if (isLocalMode()) {
+  showLocalOnly();
+} else if (isSignedIn()) {
   showSignedIn();
 } else if (!googleIsConfigured()) {
   showSignedOut('Google sign-in isn\'t set up yet: the Google Client ID still needs to be added to google-drive.js.');

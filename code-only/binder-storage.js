@@ -7,6 +7,7 @@ const CARDS_KEY_PREFIX = 'binderCards:';
 const DIRTY_KEY_PREFIX = 'binderDirty:';
 const BINDER_LIST_KEY = 'binderList';
 const LAST_BINDER_KEY = 'lastBinderId';
+const LOCAL_MODE_KEY = 'localOnly';
 
 const OLD_SINGLE_BINDER_KEY = 'binderCards';
 
@@ -35,17 +36,24 @@ const MANA_COLORS = [
 ].map((color) => ({ ...color, symbol: color.symbol || `${SYMBOL_URL}${color.code}.svg` }));
 
 const COVER_COLORS = [
-  { code: 'white', name: 'White' },
-  { code: 'blue',  name: 'Blue' },
-  { code: 'black', name: 'Black' },
-  { code: 'red',   name: 'Red' },
-  { code: 'green', name: 'Green' },
-  { code: 'gold',  name: 'Gold' },
-  { code: 'gray',  name: 'Light gray' }
+  { code: 'white',  name: 'White', light: true },
+  { code: 'blue',   name: 'Blue' },
+  { code: 'black',  name: 'Black' },
+  { code: 'red',    name: 'Red' },
+  { code: 'green',  name: 'Green' },
+  { code: 'gold',   name: 'Gold', light: true },
+  { code: 'gray',   name: 'Light gray', light: true },
+  { code: 'purple', name: 'Purple' },
+  { code: 'orange', name: 'Orange' }
 ];
 const DEFAULT_COVER = 'black';
 
+function isCustomCover(code) {
+  return typeof code === 'string' && /^#[0-9a-f]{6}$/i.test(code);
+}
+
 function cleanCover(code) {
+  if (isCustomCover(code)) return code.toLowerCase();
   return COVER_COLORS.some((c) => c.code === code) ? code : DEFAULT_COVER;
 }
 
@@ -184,6 +192,19 @@ function clearAllBinders() {
   storageRemove(LAST_BINDER_KEY);
 }
 
+function isLocalMode() {
+  return storageGet(LOCAL_MODE_KEY) === 'yes';
+}
+
+function setLocalMode(on) {
+  if (on) storageSet(LOCAL_MODE_KEY, 'yes');
+  else storageRemove(LOCAL_MODE_KEY);
+}
+
+function newLocalBinderId() {
+  return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
 function firstEmptyPocket(cards, pages) {
   for (let page = 1; page <= pages; page++) {
     for (let slot = 1; slot <= POCKETS_PER_PAGE; slot++) {
@@ -200,7 +221,28 @@ function isValidCard(card) {
     typeof card.number === 'string' &&
     typeof card.image === 'string' && card.image.startsWith('https://') &&
     (card.face === 0 || card.face === 1) &&
-    (card.lang === undefined || typeof card.lang === 'string');
+    (card.lang === undefined || typeof card.lang === 'string') &&
+    (card.count === undefined || (Number.isInteger(card.count) && card.count >= 1));
+}
+
+const MAX_COPIES = 99;
+
+function cardCount(card) {
+  return card && Number.isInteger(card.count) && card.count >= 1
+    ? Math.min(card.count, MAX_COPIES)
+    : 1;
+}
+
+function withCount(card, count) {
+  const copy = { ...card };
+  if (count > 1) copy.count = Math.min(count, MAX_COPIES);
+  else delete copy.count;
+  return copy;
+}
+
+function samePrinting(a, b) {
+  return a.set === b.set && a.number === b.number && a.face === b.face &&
+    (a.lang || 'en') === (b.lang || 'en');
 }
 
 function cleanCards(incoming) {

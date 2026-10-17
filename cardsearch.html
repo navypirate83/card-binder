@@ -215,7 +215,8 @@
         <legend class="dialog-text">Choose a color symbol for the cover, or none.</legend>
         <div id="colorChoices" class="color-groups"></div>
       </fieldset>
-      <!-- The binder's cover color: seven round swatches (black to start).
+      <!-- The binder's cover color: nine round swatches plus "Custom" (any
+           color, from the device's color chooser), black to start.
            binder-dialog.js adds the swatches. -->
       <fieldset class="color-choices">
         <legend class="dialog-text">Cover color</legend>
@@ -248,7 +249,8 @@
         <li><a href="cardsearch.html" aria-current="page">MTG Card Finder</a></li>
       </ul>
     </nav>
-    <!-- "Sign out" at the far right. Hidden until someone is signed in. -->
+    <!-- "Sign out" at the far right ("Sign in with Google" when using the app
+         locally, without signing in). Hidden until someone is using the binders. -->
     <button id="footerSignOut" class="footer-signout" type="button" hidden>Sign out</button>
   </footer>
 

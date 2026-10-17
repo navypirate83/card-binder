@@ -385,26 +385,16 @@ main {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--cover-edge, rgba(0, 0, 0, 0.25));
+  background: linear-gradient(135deg, var(--cover-light) 0%, var(--cover-base) 55%, var(--cover-dark) 100%);
 }
 
-.binder-menu-dot.cover-black { background: #121214; border-color: #3a3c45; }
-.binder-menu-dot.cover-white { background: #e9e6df; }
-.binder-menu-dot.cover-blue  { background: #1f4f8f; }
-.binder-menu-dot.cover-red   { background: #8e2020; }
-.binder-menu-dot.cover-green { background: #1f6a3a; }
-.binder-menu-dot.cover-gold  { background: #b8902a; }
-.binder-menu-dot.cover-gray  { background: #b9bcc2; }
-
 .binder-menu-plus {
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1;
-  color: #ffffff;
-  background: var(--accent);
   border-color: var(--accent);
+  background:
+    linear-gradient(#ffffff, #ffffff) center / 8px 2px no-repeat,
+    linear-gradient(#ffffff, #ffffff) center / 2px 8px no-repeat,
+    var(--accent);
 }
 
 .binder-menu-item + .binder-menu-new {
