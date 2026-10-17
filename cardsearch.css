@@ -1010,11 +1010,11 @@ body { padding-bottom: 43px; }
   .site-footer nav { grid-column: 1; }
   .footer-links { justify-content: flex-start; gap: 8px 12px; }
   .footer-signout { grid-column: 2; }
-  /* Shorter link words ("Binders", "Finder"), so the links, the binder's
-     name, Help and "Sign out" fit on one line. (".footer-links" in front
-     makes these rules win over the plain ".label-short" rule below.) */
-  .footer-links .label-long { display: none; }
-  .footer-links .label-short { display: inline; }
+  /* Shorter words on phones ("Binders", "Finder", "Sign in"), so the
+     footer fits on one line. (".site-footer" in front makes these rules
+     win over the plain ".label-short" rule below.) */
+  .site-footer .label-long { display: none; }
+  .site-footer .label-short { display: inline; }
 }
 /* The short link words are hidden except on phones (the rule just above) */
 .label-short { display: none; }

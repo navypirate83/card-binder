@@ -475,8 +475,8 @@ body { padding-bottom: 43px; }
   .site-footer nav { grid-column: 1; }
   .footer-links { justify-content: flex-start; gap: 8px 12px; }
   .footer-signout { grid-column: 2; }
-  .footer-links .label-long { display: none; }
-  .footer-links .label-short { display: inline; }
+  .site-footer .label-long { display: none; }
+  .site-footer .label-short { display: inline; }
 }
 .label-short { display: none; }
 @media (max-width: 360px) {

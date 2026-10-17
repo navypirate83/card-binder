@@ -816,10 +816,19 @@ body.dragging * {
       + 18px of seams = 56px
     - width = 4 pockets + 18px seams + 16px page padding + 20px padding
       + 2px border = 4 pockets + 56px
+  The space above the binder is bigger too: the top bar has a second row
+  on phones (the Drive save status, under the title), which makes it 86px
+  tall instead of 60px, so --top-gap is 114px instead of 88px. Without
+  this, the binder came out too tall for short phones, and the Previous /
+  Next row slid under the footer.
+  Very small phones (like a 320 x 568 screen) also allow a shorter binder,
+  300px instead of 380px, so it still fits without scrolling.
   Keep this 640px number in sync with PHONE_QUERY in javascript.js.
 */
 @media (max-width: 640px) {
   main {
+    --top-gap: 114px;
+    --binder-height: max(300px, calc(100svh - var(--top-gap) - var(--bottom-space)));
     --binder-chrome: 56px;
     --binder-width: min(100%, calc(4 * var(--pocket-width) + 56px));
   }
@@ -952,11 +961,12 @@ body { padding-bottom: 43px; }
   .site-footer nav { grid-column: 1; }
   .footer-links { justify-content: flex-start; gap: 8px 12px; }
   .footer-signout { grid-column: 2; }
-  /* Shorter link words ("Binders", "Finder"), so the links, the binder's
-     name, Help and "Sign out" fit on one line. (".footer-links" in front
-     makes these rules win over the plain ".label-short" rule below.) */
-  .footer-links .label-long { display: none; }
-  .footer-links .label-short { display: inline; }
+  /* Shorter words on phones, so each row fits on one line: in the footer
+     ("Binders", "Finder", "Sign in") and under the binder ("Previous",
+     "Next"). (".site-footer" / ".page-nav" in front makes these rules win
+     over the plain ".label-short" rule below.) */
+  .site-footer .label-long, .page-nav .label-long { display: none; }
+  .site-footer .label-short, .page-nav .label-short { display: inline; }
 }
 /* The short link words are hidden except on phones (the rule just above) */
 .label-short { display: none; }

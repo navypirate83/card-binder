@@ -250,12 +250,20 @@ function setUpFooterSignOut(afterSignOut, afterSignIn = () => { location.href = 
 
 // Show the footer's bottom-right link with the right words for now:
 // "Sign in with Google" when using the app locally, otherwise "Sign out".
-// Hidden when nobody is using the binders.
+// "Sign in with Google" has a long and a short label: phones show just
+// "Sign in", so the footer stays on one line (the "label-short" rules in
+// each page's stylesheet). Hidden when nobody is using the binders.
 function showFooterAccountLink() {
   const link = document.getElementById('footerSignOut');
   if (!link) return;
   link.hidden = !isLoggedIn();
-  link.textContent = isLocalMode() ? 'Sign in with Google' : 'Sign out';
+  if (isLocalMode()) {
+    link.innerHTML = '<span class="label-long">Sign in with Google</span><span class="label-short">Sign in</span>';
+    link.setAttribute('aria-label', 'Sign in with Google');
+  } else {
+    link.textContent = 'Sign out';
+    link.removeAttribute('aria-label');
+  }
 }
 
 /* ---------------------------------------------------------------------
@@ -269,10 +277,12 @@ async function driveRequest(url, options = {}) {
   const token = getAccessToken();
   if (!token) throw signedOutError();
 
-  const response = await fetch(url, {
+  // fetchOrExplain (binder-storage.js) gives up after 20 seconds and
+  // explains a missing reply (offline, too slow) in plain English.
+  const response = await fetchOrExplain(url, {
     ...options,
     headers: { ...(options.headers || {}), Authorization: `Bearer ${token}` }
-  });
+  }, 'Google Drive');
   if (response.status === 401) {           // 401 = "not allowed": the pass ran out
     forgetAccessToken();
     throw signedOutError();
@@ -349,7 +359,14 @@ async function listBinderFiles() {
 // Read one binder file's contents (the binder data).
 async function readBinderFile(fileId) {
   const response = await driveRequest(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`);
-  return response.json();
+  // A file that isn't readable JSON (edited by hand, or damaged): say so,
+  // rather than show a confusing "Unexpected token" message. Nothing is
+  // saved over it, so this browser's copy of the binder stays as it was.
+  try {
+    return await response.json();
+  } catch (err) {
+    throw new Error('This binder\'s file in Google Drive can\'t be read. It may have been edited or damaged.');
+  }
 }
 
 // Replace one binder file's contents with new binder data.

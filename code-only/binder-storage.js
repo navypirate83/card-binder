@@ -262,3 +262,25 @@ function cleanCards(incoming) {
   }
   return { cards, skipped };
 }
+
+const REQUEST_TIMEOUT_MS = 20000;
+
+async function fetchOrExplain(url, options = {}, service = 'the server') {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    const error = new Error(navigator.onLine === false
+      ? 'You\'re offline. Check your internet connection, then try again.'
+      : err.name === 'AbortError'
+        ? `${service} is taking too long to answer. Please try again in a moment.`
+        : `Couldn't reach ${service}. Check your internet connection, then try again.`);
+    error.offline = true;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const CARD_BACK = 'https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg';

@@ -407,3 +407,46 @@ function cleanCards(incoming) {
   }
   return { cards, skipped };
 }
+
+
+/* =====================================================================
+   SAFER INTERNET REQUESTS
+   Every request to Scryfall (card details) and Google Drive (binders)
+   goes through fetchOrExplain, so problems come back as plain-English
+   messages instead of the browser's "Failed to fetch", and a request
+   that never answers doesn't leave the page stuck on "Loading…".
+   ===================================================================== */
+
+// How long to wait for a reply before giving up (20 seconds).
+const REQUEST_TIMEOUT_MS = 20000;
+
+// Send a request ("fetch") and return the reply. "service" is who it's
+// for, used in messages (like "Scryfall"). If there's no reply at all,
+// it throws an Error that explains why, marked "offline: true":
+//  - the device is offline
+//  - it took longer than REQUEST_TIMEOUT_MS ("AbortController" is the
+//    browser's way to cancel a request part way)
+//  - anything else (no internet, a blocked or broken connection)
+// A reply that says something went wrong (like "not found") is still a
+// reply: it's returned, and the caller decides what to say.
+async function fetchOrExplain(url, options = {}, service = 'the server') {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    const error = new Error(navigator.onLine === false
+      ? 'You\'re offline. Check your internet connection, then try again.'
+      : err.name === 'AbortError'
+        ? `${service} is taking too long to answer. Please try again in a moment.`
+        : `Couldn't reach ${service}. Check your internet connection, then try again.`);
+    error.offline = true;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// The back of a Magic card: shown instead of a card picture that's
+// missing or won't download (on the card finder and in binder pockets).
+const CARD_BACK = 'https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg';

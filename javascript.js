@@ -139,6 +139,11 @@ function fillPocket(pocket, page, slot) {
     if (loadedPages.has(page)) img.src = card.image;
     else img.dataset.src = card.image;
     img.alt = '';                 // the link's label already names the card
+    // If the picture won't download (Scryfall moved it, or no internet),
+    // show the back of a Magic card instead of a broken-picture icon.
+    // (CARD_BACK is in binder-storage.js; "once" so a failing card back
+    // can't keep retrying.)
+    img.addEventListener('error', () => { img.src = CARD_BACK; }, { once: true });
     // Turn off the browser's own "drag a picture or link" feature: we
     // handle dragging cards between pockets ourselves (see DRAGGING CARDS).
     img.draggable = false;
@@ -1158,10 +1163,25 @@ async function syncWithDrive() {
     setSyncStatus('saved', savedNote || '✓ Saved to Drive');
     savedNote = null;
   } catch (err) {
-    if (err.signedOut) setSyncStatus('signed-out', 'Not saved to Drive yet');
-    else setSyncStatus('error', 'Couldn\'t reach Google Drive');
+    if (err.signedOut) { setSyncStatus('signed-out', 'Not saved to Drive yet'); return; }
+    // No internet, Drive too slow, or a Drive problem: the changes are
+    // safe in this browser (marked "needs saving"), so say so, and try
+    // again in a while (and as soon as the internet is back: see below).
+    setSyncStatus('error', err.offline
+      ? 'Offline: changes are kept on this device'
+      : 'Couldn\'t save to Google Drive yet: will try again');
+    clearTimeout(driveSaveTimer);
+    driveSaveTimer = setTimeout(syncWithDrive, DRIVE_RETRY_MS);
   }
 }
+
+// How long to wait before trying a failed save to Drive again (30 seconds).
+const DRIVE_RETRY_MS = 30000;
+
+// The internet came back: save straight away if there are changes waiting.
+window.addEventListener('online', () => {
+  if (!isLocalMode() && binderDirtyStamp(BINDER_ID)) syncWithDrive();
+});
 
 // After a change: save to Drive in a moment (restarting the wait if more
 // changes come in quickly).

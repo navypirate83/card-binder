@@ -69,6 +69,7 @@ function fillPocket(pocket, page, slot) {
     if (loadedPages.has(page)) img.src = card.image;
     else img.dataset.src = card.image;
     img.alt = '';
+    img.addEventListener('error', () => { img.src = CARD_BACK; }, { once: true });
     img.draggable = false;
     link.draggable = false;
     link.appendChild(img);
@@ -781,10 +782,20 @@ async function syncWithDrive() {
     setSyncStatus('saved', savedNote || '✓ Saved to Drive');
     savedNote = null;
   } catch (err) {
-    if (err.signedOut) setSyncStatus('signed-out', 'Not saved to Drive yet');
-    else setSyncStatus('error', 'Couldn\'t reach Google Drive');
+    if (err.signedOut) { setSyncStatus('signed-out', 'Not saved to Drive yet'); return; }
+    setSyncStatus('error', err.offline
+      ? 'Offline: changes are kept on this device'
+      : 'Couldn\'t save to Google Drive yet: will try again');
+    clearTimeout(driveSaveTimer);
+    driveSaveTimer = setTimeout(syncWithDrive, DRIVE_RETRY_MS);
   }
 }
+
+const DRIVE_RETRY_MS = 30000;
+
+window.addEventListener('online', () => {
+  if (!isLocalMode() && binderDirtyStamp(BINDER_ID)) syncWithDrive();
+});
 
 function scheduleDriveSave() {
   clearTimeout(driveSaveTimer);

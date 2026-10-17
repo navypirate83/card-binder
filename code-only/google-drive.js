@@ -171,17 +171,23 @@ function showFooterAccountLink() {
   const link = document.getElementById('footerSignOut');
   if (!link) return;
   link.hidden = !isLoggedIn();
-  link.textContent = isLocalMode() ? 'Sign in with Google' : 'Sign out';
+  if (isLocalMode()) {
+    link.innerHTML = '<span class="label-long">Sign in with Google</span><span class="label-short">Sign in</span>';
+    link.setAttribute('aria-label', 'Sign in with Google');
+  } else {
+    link.textContent = 'Sign out';
+    link.removeAttribute('aria-label');
+  }
 }
 
 async function driveRequest(url, options = {}) {
   const token = getAccessToken();
   if (!token) throw signedOutError();
 
-  const response = await fetch(url, {
+  const response = await fetchOrExplain(url, {
     ...options,
     headers: { ...(options.headers || {}), Authorization: `Bearer ${token}` }
-  });
+  }, 'Google Drive');
   if (response.status === 401) {
     forgetAccessToken();
     throw signedOutError();
@@ -245,7 +251,11 @@ async function listBinderFiles() {
 
 async function readBinderFile(fileId) {
   const response = await driveRequest(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`);
-  return response.json();
+  try {
+    return await response.json();
+  } catch (err) {
+    throw new Error('This binder\'s file in Google Drive can\'t be read. It may have been edited or damaged.');
+  }
 }
 
 async function writeBinderFile(fileId, data) {

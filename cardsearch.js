@@ -14,9 +14,9 @@
 // The address of the Scryfall API (the only data source this app uses).
 const API = 'https://api.scryfall.com';
 
-// Picture of the back of a Magic card, hosted by Scryfall.
-// Shown before a search, and whenever a card has no picture.
-const CARD_BACK = 'https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg';
+// The back of a Magic card is shown before a search, and whenever a card
+// has no picture. Its address, CARD_BACK, is in binder-storage.js (the
+// binder pages use it too); this is the description for screen readers.
 const CARD_BACK_ALT = 'Back of a Magic: The Gathering card';
 
 // Search rule: start suggesting once 3 letters are typed. There's no cap
@@ -138,18 +138,25 @@ themeSwitch.addEventListener('click', () => {
 let lastRequestTime = 0;
 
 // Fetch JSON from Scryfall. To be polite, wait if the previous request
-// was sent less than REQUEST_GAP_MS ago. Throws an Error on failure.
+// was sent less than REQUEST_GAP_MS ago. Throws an Error with a message
+// that can be shown on the page when something goes wrong:
+//  - no reply at all (offline, too slow): see fetchOrExplain in binder-storage.js
+//  - Scryfall's own message (it sends "details", e.g. a card not found)
+//  - too many requests (error 429): Scryfall asks to slow down
+//  - anything else, including a reply that isn't readable JSON
 async function scryfall(pathOrUrl) {
   const wait = Math.max(0, lastRequestTime + REQUEST_GAP_MS - Date.now());
   lastRequestTime = Date.now() + wait;
   if (wait) await sleep(wait);
 
   const url = pathOrUrl.startsWith('http') ? pathOrUrl : API + pathOrUrl;
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
-  const data = await response.json();
-  // Scryfall sends a "details" message when something goes wrong.
-  if (!response.ok) throw new Error(data.details || 'Scryfall request failed');
-  return data;
+  const response = await fetchOrExplain(url, { headers: { Accept: 'application/json' } }, 'Scryfall');
+  let data = null;
+  try { data = await response.json(); } catch (e) { /* not JSON: handled below */ }
+  if (response.ok && data) return data;
+  if (data && data.details) throw new Error(data.details);
+  if (response.status === 429) throw new Error('Scryfall is busy right now. Wait a moment, then try again.');
+  throw new Error(`Scryfall had a problem (error ${response.status}). Please try again in a moment.`);
 }
 
 // Some Scryfall lists come in pages. Keep asking for the next page
