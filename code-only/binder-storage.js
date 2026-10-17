@@ -222,7 +222,8 @@ function isValidCard(card) {
     typeof card.image === 'string' && card.image.startsWith('https://') &&
     (card.face === 0 || card.face === 1) &&
     (card.lang === undefined || typeof card.lang === 'string') &&
-    (card.count === undefined || (Number.isInteger(card.count) && card.count >= 1));
+    (card.count === undefined || (Number.isInteger(card.count) && card.count >= 1)) &&
+    (card.foil === undefined || typeof card.foil === 'boolean');
 }
 
 const MAX_COPIES = 99;
@@ -242,7 +243,7 @@ function withCount(card, count) {
 
 function samePrinting(a, b) {
   return a.set === b.set && a.number === b.number && a.face === b.face &&
-    (a.lang || 'en') === (b.lang || 'en');
+    (a.lang || 'en') === (b.lang || 'en') && Boolean(a.foil) === Boolean(b.foil);
 }
 
 function cleanCards(incoming) {

@@ -431,9 +431,16 @@ main {
   }
 }
 
+.card-toggles {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
 .flip-button {
   display: block;
-  margin: 12px auto 0;
+  margin: 0;
   padding: 8px 16px;
   font: inherit;
   font-size: 0.9rem;
@@ -444,6 +451,37 @@ main {
   cursor: pointer;
 }
 .flip-button:hover { background: var(--surface-hover); }
+
+.foil-button {
+  padding: 8px 18px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+.foil-button:hover:not(:disabled) { opacity: 0.85; }
+
+.foil-button[aria-pressed="true"] {
+  color: #000000;
+  background: #e38a5c;
+  border: 1px solid #e38a5c;
+  opacity: 1;
+}
+
+.foil-button:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+.foil-button[aria-pressed="true"]:disabled {
+  opacity: 1;
+  cursor: default;
+}
 
 .card-info {
   margin: 14px 0 0;

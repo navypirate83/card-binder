@@ -89,6 +89,7 @@ function searchLinkFor(page, slot, card) {
     params.set('number', card.number);
     if (card.face === 1) params.set('face', 'back');
     if (card.lang) params.set('lang', card.lang);   // e.g. "ja" for Japanese
+    if (card.foil) params.set('foil', '1');         // opens with Foil already on
   }
   params.set('binder', BINDER_ID);
   params.set('binderPage', page);
@@ -122,11 +123,15 @@ function fillPocket(pocket, page, slot) {
   const link = document.createElement('a');
   link.href = searchLinkFor(page, slot, card);
   link.tabIndex = pocketKey(page, slot) === activeKey ? 0 : -1;   // see activeKey above
+  // A foil card gets a rainbow border (the "foil" class: see style.css).
+  // The pocket itself stays when its card changes, so set it every time.
+  pocket.classList.toggle('foil', Boolean(card && card.foil));
 
   if (card) {
     link.className = 'pocket-card';
     const copies = cardCount(card) > 1 ? `, ${cardCount(card)} copies` : '';
-    link.setAttribute('aria-label', `${card.name}${copies}, page ${page}, pocket ${slot}. Open in card search`);
+    const foil = card.foil ? ', foil' : '';
+    link.setAttribute('aria-label', `${card.name}${foil}${copies}, page ${page}, pocket ${slot}. Open in card search`);
     const img = document.createElement('img');
     // On a page near the one you're looking at: show the picture now.
     // Otherwise keep its address in "data-src" until you get near that

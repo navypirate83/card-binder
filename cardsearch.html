@@ -151,8 +151,20 @@
       <div id="shareToast" class="share-toast" role="status" hidden></div>
     </div>
 
-    <!-- Only shown for double-sided cards -->
-    <button id="flipButton" class="flip-button" type="button" hidden>Flip card ↻</button>
+    <!--
+      The buttons under the card, side by side:
+      - Flip card: only shown for double-sided cards
+      - Foil: a toggle (on / off) for "I have the foil version". It looks
+        faint until it's pressed, then turns orange. It can only be pressed
+        when this printing comes in foil (or etched foil), and it's already
+        on (and stays on) when the printing ONLY comes in foil.
+        aria-pressed tells screen readers whether it's on. cardsearch.js
+        sets it up for each printing. Cards added to a binder remember it.
+    -->
+    <div class="card-toggles">
+      <button id="flipButton" class="flip-button" type="button" hidden>Flip card ↻</button>
+      <button id="foilButton" class="foil-button" type="button" aria-pressed="false" hidden>Foil</button>
+    </div>
 
     <!-- Name, set, and artist of the card being shown -->
     <p id="cardInfo" class="card-info"></p>

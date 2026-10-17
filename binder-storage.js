@@ -159,6 +159,8 @@ function currentBinderId() {
 
 // Read one binder's saved cards. Returns an object like:
 //   { "3-5": { name, set, number, face, image }, ... }
+// A card can also have "lang" (a language other than the printing's own),
+// "count" (copies owned, when more than 1) and "foil: true" (a foil copy).
 // If nothing is saved yet (or storage is blocked), it's empty.
 function loadBinder(id = currentBinderId()) {
   if (!id) return {};
@@ -351,7 +353,8 @@ function isValidCard(card) {
     typeof card.image === 'string' && card.image.startsWith('https://') &&
     (card.face === 0 || card.face === 1) &&
     (card.lang === undefined || typeof card.lang === 'string') &&
-    (card.count === undefined || (Number.isInteger(card.count) && card.count >= 1));
+    (card.count === undefined || (Number.isInteger(card.count) && card.count >= 1)) &&
+    (card.foil === undefined || typeof card.foil === 'boolean');
 }
 
 // How many copies of one card a pocket can say you own (the "− 3 +"
@@ -376,11 +379,12 @@ function withCount(card, count) {
   return copy;
 }
 
-// Are two cards the same printing: same set, collector number, face and
-// language? Used when moving copies into a binder that already has that card.
+// Are two cards the same printing: same set, collector number, face,
+// language and foil-or-not? Used when moving copies into a binder that
+// already has that card (a foil copy isn't added to a non-foil one).
 function samePrinting(a, b) {
   return a.set === b.set && a.number === b.number && a.face === b.face &&
-    (a.lang || 'en') === (b.lang || 'en');
+    (a.lang || 'en') === (b.lang || 'en') && Boolean(a.foil) === Boolean(b.foil);
 }
 
 // Keep only the valid cards in pockets that can exist (like "3-5", on any

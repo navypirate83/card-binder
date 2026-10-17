@@ -24,6 +24,7 @@ const binderButton  = document.getElementById('binderButton');
 const binderMenu    = document.getElementById('binderMenu');
 const binderMenuList = document.getElementById('binderMenuList');
 const flipButton    = document.getElementById('flipButton');
+const foilButton    = document.getElementById('foilButton');
 const cardInfo      = document.getElementById('cardInfo');
 const setButton     = document.getElementById('setButton');
 const setList       = document.getElementById('setList');
@@ -49,6 +50,8 @@ const state = {
   shownCard: null,
   languageToken: 0,
   wantedLanguage: null,
+  foil: false,
+  wantedFoil: null,
   activeSetIndex: -1,
   loadToken: 0
 };
@@ -516,6 +519,8 @@ function resetCardDetails() {
   languageSelect.disabled = true;
   languageSelect.innerHTML = `<option>${EMPTY_PICKER_TEXT}</option>`;
   flipButton.hidden = true;
+  foilButton.hidden = true;
+  setFoil(false);
   shareButton.hidden = true;
   binderButton.hidden = true;
   closeBinderMenu(false);
@@ -698,6 +703,7 @@ function selectPrint(print) {
   versionSelect.value = print.id;
   loadLanguages(print);
   flipButton.hidden = !isDoubleSided(print);
+  setUpFoilButton(print);
   shareButton.hidden = false;
   binderButton.hidden = !LOGGED_IN;
   showFace(0);
@@ -825,6 +831,30 @@ function showFace(face) {
 
 flipButton.addEventListener('click', () => showFace(state.currentFace === 0 ? 1 : 0));
 
+function foilChoices(print) {
+  const finishes = print.finishes || [];
+  const canBeFoil = finishes.includes('foil') || finishes.includes('etched');
+  return { canBeFoil, onlyFoil: canBeFoil && !finishes.includes('nonfoil') };
+}
+
+function setFoil(on) {
+  state.foil = on;
+  foilButton.setAttribute('aria-pressed', String(on));
+}
+
+function setUpFoilButton(print) {
+  const { canBeFoil, onlyFoil } = foilChoices(print);
+  foilButton.hidden = false;
+  foilButton.disabled = !canBeFoil || onlyFoil;
+  foilButton.title = !canBeFoil ? 'This printing has no foil version'
+    : onlyFoil ? 'This printing only comes in foil' : 'I have the foil version';
+  const wanted = state.wantedFoil !== null ? state.wantedFoil : state.foil;
+  state.wantedFoil = null;
+  setFoil(onlyFoil || (canBeFoil && wanted));
+}
+
+foilButton.addEventListener('click', () => setFoil(!state.foil));
+
 function imageFor(print, face, sizes = ['large', 'normal']) {
   if (print.image_status === 'missing' || print.image_status === 'placeholder') return null;
   const uris = print.image_uris || (print.card_faces && print.card_faces[face].image_uris);
@@ -870,6 +900,7 @@ function shareLink() {
   if (state.currentFace === 1) link.searchParams.set('face', 'back');
   const lang = state.shownCard.lang;
   if (lang !== state.currentPrint.lang) link.searchParams.set('lang', lang);
+  if (state.foil) link.searchParams.set('foil', '1');
   return link.toString();
 }
 
@@ -908,6 +939,7 @@ function openSharedLinkIfAny() {
   const setCode = params.get('set');
   const number = params.get('number');
   state.wantedLanguage = params.get('lang');
+  state.wantedFoil = params.get('foil') === '1' ? true : null;
   if (setCode && number) {
     loadCardBySetAndNumber(setCode, number, params.get('face') === 'back' ? 1 : 0);
   }
@@ -1086,6 +1118,7 @@ function shownCardEntry() {
     number: print.collector_number,
     face: face,
     lang: shown.lang !== print.lang ? shown.lang : undefined,
+    foil: state.foil ? true : undefined,
     image: binderImageFor(shown, face)
   };
 }

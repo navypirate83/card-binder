@@ -40,6 +40,7 @@ function searchLinkFor(page, slot, card) {
     params.set('number', card.number);
     if (card.face === 1) params.set('face', 'back');
     if (card.lang) params.set('lang', card.lang);
+    if (card.foil) params.set('foil', '1');
   }
   params.set('binder', BINDER_ID);
   params.set('binderPage', page);
@@ -57,11 +58,13 @@ function fillPocket(pocket, page, slot) {
   const link = document.createElement('a');
   link.href = searchLinkFor(page, slot, card);
   link.tabIndex = pocketKey(page, slot) === activeKey ? 0 : -1;
+  pocket.classList.toggle('foil', Boolean(card && card.foil));
 
   if (card) {
     link.className = 'pocket-card';
     const copies = cardCount(card) > 1 ? `, ${cardCount(card)} copies` : '';
-    link.setAttribute('aria-label', `${card.name}${copies}, page ${page}, pocket ${slot}. Open in card search`);
+    const foil = card.foil ? ', foil' : '';
+    link.setAttribute('aria-label', `${card.name}${foil}${copies}, page ${page}, pocket ${slot}. Open in card search`);
     const img = document.createElement('img');
     if (loadedPages.has(page)) img.src = card.image;
     else img.dataset.src = card.image;

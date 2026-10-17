@@ -255,6 +255,21 @@ main {
   -webkit-touch-callout: none;
 }
 
+.pocket.foil::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 3px;
+  border-radius: inherit;
+  background: linear-gradient(135deg,
+    #ff4d6d, #ff9f43, #ffe156, #4cd97b, #3ec5ff, #6c7bff, #c06cff, #ff4d6d);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
 .pocket-card img {
   display: block;
   width: 100%;

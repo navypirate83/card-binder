@@ -595,10 +595,19 @@ main {
   }
 }
 
+/* The row of buttons under the card (Flip card and Foil), centered, side
+   by side. (A hidden button takes no space, so one alone stays centered.) */
+.card-toggles {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
 /* "Flip card" button for double-sided cards */
 .flip-button {
   display: block;
-  margin: 12px auto 0;
+  margin: 0;
   padding: 8px 16px;
   font: inherit;
   font-size: 0.9rem;
@@ -609,6 +618,47 @@ main {
   cursor: pointer;
 }
 .flip-button:hover { background: var(--surface-hover); }
+
+/*
+  The Foil button. OFF, it looks "ghosted": see-through, with a dashed
+  outline and faded text. ON (aria-pressed="true"), it's filled with the
+  bright orange and has black text. The orange is the same in both themes
+  (dark mode's accent), so the black text is always easy to read.
+*/
+.foil-button {
+  padding: 8px 18px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+.foil-button:hover:not(:disabled) { opacity: 0.85; }
+
+/* On: solid orange with black text, fully showing */
+.foil-button[aria-pressed="true"] {
+  color: #000000;
+  background: #e38a5c;
+  border: 1px solid #e38a5c;
+  opacity: 1;
+}
+
+/* Can't be pressed: this printing has no foil version (very faint, and
+   a "not allowed" pointer) ... */
+.foil-button:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+/* ... or it ONLY comes in foil: it stays on (orange), just not clickable */
+.foil-button[aria-pressed="true"]:disabled {
+  opacity: 1;
+  cursor: default;
+}
 
 /* Name / set / artist text under the card */
 .card-info {

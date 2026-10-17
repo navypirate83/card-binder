@@ -436,6 +436,31 @@ main {
   -webkit-touch-callout: none;
 }
 
+/*
+  A FOIL card (marked with the Foil button on the card finder): a rainbow
+  border around the card. It's drawn by a layer on top of the card's edge
+  ("::before", covering the whole pocket), so the card doesn't shrink or
+  move. The trick: the layer is filled with a rainbow, then a "mask" cuts
+  out everything except a 3px frame ("padding: 3px" is the frame's width;
+  "exclude" removes the inner part from the whole). "pointer-events: none"
+  lets clicks pass through to the card. z-index 1 puts it over the card
+  picture; the "− 3 +" bar comes later in the page, so it stays on top.
+*/
+.pocket.foil::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 3px;
+  border-radius: inherit;
+  background: linear-gradient(135deg,
+    #ff4d6d, #ff9f43, #ffe156, #4cd97b, #3ec5ff, #6c7bff, #c06cff, #ff4d6d);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
 /* The card picture fills its pocket */
 .pocket-card img {
   display: block;

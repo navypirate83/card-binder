@@ -49,6 +49,7 @@ const binderButton  = document.getElementById('binderButton');
 const binderMenu    = document.getElementById('binderMenu');       // "Add to which binder?" list
 const binderMenuList = document.getElementById('binderMenuList');  // ...and the binders inside it
 const flipButton    = document.getElementById('flipButton');
+const foilButton    = document.getElementById('foilButton');
 const cardInfo      = document.getElementById('cardInfo');
 const setButton     = document.getElementById('setButton');
 const setList       = document.getElementById('setList');
@@ -82,6 +83,8 @@ const state = {
   shownCard: null,       // the language version being shown (English is currentPrint itself)
   languageToken: 0,      // goes up with every printing change; used to ignore stale language lists
   wantedLanguage: null,  // a language asked for by a shared or binder link, e.g. "ja"
+  foil: false,           // is the Foil button on? (the card is a foil copy)
+  wantedFoil: null,      // foil asked for by a shared or binder link (true), or null
   activeSetIndex: -1,    // which row of the set list the arrow keys highlight
   loadToken: 0           // goes up with every card lookup; used to ignore stale answers
 };
@@ -598,6 +601,8 @@ function resetCardDetails() {
   languageSelect.disabled = true;
   languageSelect.innerHTML = `<option>${EMPTY_PICKER_TEXT}</option>`;
   flipButton.hidden = true;
+  foilButton.hidden = true;
+  setFoil(false);
   shareButton.hidden = true;
   binderButton.hidden = true;
   closeBinderMenu(false);
@@ -824,6 +829,7 @@ function selectPrint(print) {
   versionSelect.value = print.id;
   loadLanguages(print);         // fill the Language picker (in the background)
   flipButton.hidden = !isDoubleSided(print);
+  setUpFoilButton(print);       // can this printing be foil? (see FOIL below)
   shareButton.hidden = false;   // a card is showing, so it can be shared...
   binderButton.hidden = !LOGGED_IN;   // ...and added to a binder (only when logged in)
   showFace(0);
@@ -996,6 +1002,49 @@ function showFace(face) {
 // The Flip button switches to the other side.
 flipButton.addEventListener('click', () => showFace(state.currentFace === 0 ? 1 : 0));
 
+/* =====================================================================
+   FOIL
+   Scryfall lists the finishes each printing was made in ("finishes"):
+   "nonfoil", "foil" and/or "etched" (etched foil, which counts as foil
+   here). There's no separate foil picture, so the Foil button just
+   records that you have the foil copy: cards added to a binder remember
+   it, and the binder gives foil cards a rainbow border.
+   ===================================================================== */
+
+// Which foil choices a printing has: can it be foil at all, and is foil
+// the ONLY way it was made?
+function foilChoices(print) {
+  const finishes = print.finishes || [];
+  const canBeFoil = finishes.includes('foil') || finishes.includes('etched');
+  return { canBeFoil, onlyFoil: canBeFoil && !finishes.includes('nonfoil') };
+}
+
+// Turn the Foil button on or off (aria-pressed is what screen readers
+// read, and what cardsearch.css uses to color it orange).
+function setFoil(on) {
+  state.foil = on;
+  foilButton.setAttribute('aria-pressed', String(on));
+}
+
+// Set up the Foil button for a printing being shown:
+//  - no foil version: faint and can't be pressed
+//  - only a foil version: already on, and can't be turned off
+//  - both: can be pressed. It keeps its last setting when switching
+//    versions (or follows a link that asked for foil, once).
+function setUpFoilButton(print) {
+  const { canBeFoil, onlyFoil } = foilChoices(print);
+  foilButton.hidden = false;
+  foilButton.disabled = !canBeFoil || onlyFoil;
+  foilButton.title = !canBeFoil ? 'This printing has no foil version'
+    : onlyFoil ? 'This printing only comes in foil' : 'I have the foil version';
+  const wanted = state.wantedFoil !== null ? state.wantedFoil : state.foil;
+  state.wantedFoil = null;   // a link's request only counts for the first printing
+  setFoil(onlyFoil || (canBeFoil && wanted));
+}
+
+// Clicking Foil turns it on or off.
+foilButton.addEventListener('click', () => setFoil(!state.foil));
+
 // Find the picture address for one side of a printing. Returns null when
 // Scryfall has no real picture, so we can show the card back instead.
 // "sizes" says which picture size to use, in order of preference: the
@@ -1065,6 +1114,7 @@ function shareLink() {
   if (state.currentFace === 1) link.searchParams.set('face', 'back');
   const lang = state.shownCard.lang;
   if (lang !== state.currentPrint.lang) link.searchParams.set('lang', lang);
+  if (state.foil) link.searchParams.set('foil', '1');   // the foil copy
   return link.toString();
 }
 
@@ -1113,6 +1163,7 @@ function openSharedLinkIfAny() {
   const setCode = params.get('set');
   const number = params.get('number');
   state.wantedLanguage = params.get('lang');
+  state.wantedFoil = params.get('foil') === '1' ? true : null;   // "foil=1": start with Foil on
   if (setCode && number) {
     loadCardBySetAndNumber(setCode, number, params.get('face') === 'back' ? 1 : 0);
   }
@@ -1348,7 +1399,7 @@ async function addCardToBinder(binderId, pocket) {
 }
 
 // The card being shown, as a binder saves it: this exact set, version,
-// side and language, plus the picture to show in the pocket.
+// side and language, whether it's foil, plus the picture to show in the pocket.
 function shownCardEntry() {
   const print = state.currentPrint;
   // Only the side being shown counts as "the back" for double-sided cards.
@@ -1361,6 +1412,7 @@ function shownCardEntry() {
     number: print.collector_number,
     face: face,
     lang: shown.lang !== print.lang ? shown.lang : undefined,   // only saved if switched
+    foil: state.foil ? true : undefined,                         // only saved if foil
     image: binderImageFor(shown, face)
   };
 }
